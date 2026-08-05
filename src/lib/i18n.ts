@@ -19,9 +19,10 @@ const es = {
     intro:
       "Me interesa entender como funcionan las cosas por dentro. Con criterio propio, y usando IA como copiloto para la productividad, construyo lo que se me cruce por la cabeza.",
     resume: "Currículum",
-    // botón animado de la fila de enlaces: por ahora solo la animación, la
-    // acción que dispara se define después
+    // botón animado de la fila de enlaces: lleva la cámara adentro de la
+    // pelota del logo del dock
     animation: "Animación",
+    animationBack: "Tocá o Esc para volver",
   },
   sections: {
     proyectos: "Proyectos",
@@ -149,6 +150,29 @@ const es = {
         text: "Técnico/a Superior en Desarrollo Web y Aplicaciones Digitales (en curso) en Instituto Santo Domingo, mas aprendizaje autodidacta en Linux, Windows y maquinas virtuales.",
       },
     ],
+    // los nombres se cruzan contra techIcons en page.tsx; el que no tiene
+    // icono se muestra igual, solo con su nombre
+    tools: {
+      title: "Con qué trabajo",
+      items: [
+        "Arch Linux",
+        "VS Code",
+        "Git",
+        "GitHub",
+        "TypeScript",
+        "Next.js",
+        "Tailwind CSS",
+        "PostgreSQL",
+        "Prisma",
+        "Vercel",
+        "Claude Code",
+      ],
+      note: "Todo sobre Linux, y la IA metida en el editor y en la terminal, no en una pestaña aparte.",
+    },
+    offline: {
+      title: "Fuera del código",
+      text: "Soy de Tucumán. Aprendí a programar por mi cuenta desde 2022, rompiendo cosas en máquinas virtuales hasta entender por qué se rompían, y sigue siendo la forma en la que aprendo cualquier cosa nueva.",
+    },
   },
   assistant: {
     heading: "Asistente",
@@ -198,6 +222,20 @@ const es = {
     langCode: "EN",
   },
   scrollspy: { goTo: (label: string) => `Ir a ${label}` },
+  contact: {
+    lede: "¿Tenés una búsqueda abierta, un proyecto o una idea a medio armar? Escribime por donde te quede más cómodo.",
+    location: "Tucumán, Argentina · trabajo remoto",
+    channels: {
+      github: "Todo lo que construí, con su historial de commits.",
+      linkedin:
+        "El lugar para hablar de trabajo. Es por donde más rápido contesto.",
+    },
+    assistant: {
+      title: "¿Preguntas rápidas?",
+      text: "El asistente del sitio sabe de mí, de mis proyectos y de mi stack. Si querés chequear algo antes de escribirme, preguntale a él.",
+      cta: "Abrir el asistente",
+    },
+  },
 };
 
 const en: typeof es = {
@@ -213,6 +251,7 @@ const en: typeof es = {
       "I like understanding how things work under the hood. With my own judgment, and using AI as a copilot for productivity, I build whatever crosses my mind.",
     resume: "Resume",
     animation: "Animation",
+    animationBack: "Tap or press Esc to go back",
   },
   sections: {
     proyectos: "Projects",
@@ -337,6 +376,27 @@ const en: typeof es = {
         text: "Higher Technical Degree in Web and Digital App Development (in progress) at Instituto Santo Domingo, plus self-taught learning in Linux, Windows and virtual machines.",
       },
     ],
+    tools: {
+      title: "What I work with",
+      items: [
+        "Arch Linux",
+        "VS Code",
+        "Git",
+        "GitHub",
+        "TypeScript",
+        "Next.js",
+        "Tailwind CSS",
+        "PostgreSQL",
+        "Prisma",
+        "Vercel",
+        "Claude Code",
+      ],
+      note: "All of it on Linux, with AI built into the editor and the terminal instead of living in a separate tab.",
+    },
+    offline: {
+      title: "Away from the code",
+      text: "I'm from Tucumán, Argentina. I taught myself to program from 2022 on, breaking things inside virtual machines until I understood why they broke, and that's still how I learn anything new.",
+    },
   },
   assistant: {
     heading: "Assistant",
@@ -381,6 +441,19 @@ const en: typeof es = {
     langCode: "ES",
   },
   scrollspy: { goTo: (label: string) => `Go to ${label}` },
+  contact: {
+    lede: "Got an open role, a project, or an idea that's still half-formed? Write to me wherever suits you best.",
+    location: "Tucumán, Argentina · working remotely",
+    channels: {
+      github: "Everything I've built, with its commit history.",
+      linkedin: "The place to talk about work. It's where I reply fastest.",
+    },
+    assistant: {
+      title: "Quick questions?",
+      text: "The site's assistant knows about me, my projects and my stack. If you want to check something before writing, ask it.",
+      cta: "Open the assistant",
+    },
+  },
 };
 
 export const copy = { es, en } as const;

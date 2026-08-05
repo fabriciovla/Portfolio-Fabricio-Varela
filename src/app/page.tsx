@@ -37,7 +37,10 @@ import {
 } from "react-icons/hi2";
 import {
   SiAnthropic,
+  SiArchlinux,
   SiCss,
+  SiGit,
+  SiGithub,
   SiHtml5,
   SiJavascript,
   SiNextdotjs,
@@ -48,17 +51,14 @@ import {
   SiReact,
   SiTailwindcss,
   SiTypescript,
+  SiVercel,
 } from "react-icons/si";
+// react-icons no trae LinkedIn en su set de marcas (si), sí en fa6
+import { FaLinkedin } from "react-icons/fa6";
 import type { IconType } from "react-icons";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import {
-  LangContext,
-  copy,
-  useLang,
-  type Copy,
-  type Lang,
-} from "@/lib/i18n";
+import { LangContext, copy, useLang, type Copy, type Lang } from "@/lib/i18n";
 
 // indicador de "pensando": tres pelotitas rebotando, a juego con el logo
 function ThinkingDots() {
@@ -145,6 +145,38 @@ function OneChaterLogo({
   );
 }
 
+// dónde cae, en píxeles de pantalla, la pelota de abajo del logo dentro de la
+// caja del icono del dock. Mismo mapeo del viewBox "14 18 74 72": la pelota
+// está en (50, 70) y mide 34 unidades, y el svg se dibuja centrado, así que
+// todo se cuenta contra el centro del viewBox (51, 54). Lo usan el cambio de
+// tono y la cámara, que salen los dos de esa misma pelota
+function bottomBall(icon: HTMLElement) {
+  const rect = icon.getBoundingClientRect();
+  // sin ancho el icono no está a la vista (asistente abierto, aviso en el
+  // dock): no hay pelota de la que salir
+  if (!rect.width) return null;
+  const s = Math.min(rect.width / 74, rect.height / 72);
+  return {
+    cx: rect.left + rect.width / 2 + (50 - 51) * s,
+    cy: rect.top + rect.height / 2 + (70 - 54) * s,
+    d: 34 * s,
+  };
+}
+
+// un viaje de cámara ya resuelto: dónde está la pelota (cx/cy/d), cuánto hay
+// que correrla para dejarla en el centro (dx/dy), cuánto agrandar para que tape
+// la pantalla (k) y el mismo centro en coordenadas del contenido (ox/oy)
+type CameraShot = {
+  cx: number;
+  cy: number;
+  d: number;
+  dx: number;
+  dy: number;
+  k: number;
+  ox: number;
+  oy: number;
+};
+
 // pelota que viaja del chat cerrado a la navbar: arranca donde estaba el
 // globo de saturación, espera a que la navbar termine de aparecer, y vuela
 // achicándose hasta el hueco de la pelota inferior del icono de Asistente
@@ -226,15 +258,17 @@ function FlyingBall({
     // las dos pelotas que quedaron en el icono pegan un saltito; composite
     // "add" suma estos transforms a los del morph/drag sin pisarlos
     const impact = setTimeout(() => {
-      document.querySelector<HTMLElement>("[data-dock-nav]")?.animate(
-        [
-          { transform: "translateY(0) scale(1, 1)" },
-          { transform: "translateY(2px) scale(1.012, 0.97)", offset: 0.35 },
-          { transform: "translateY(-1px) scale(0.997, 1.012)", offset: 0.7 },
-          { transform: "translateY(0) scale(1, 1)" },
-        ],
-        { duration: 450, easing: "ease-out", composite: "add" },
-      );
+      document
+        .querySelector<HTMLElement>("[data-dock-nav]")
+        ?.animate(
+          [
+            { transform: "translateY(0) scale(1, 1)" },
+            { transform: "translateY(2px) scale(1.012, 0.97)", offset: 0.35 },
+            { transform: "translateY(-1px) scale(0.997, 1.012)", offset: 0.7 },
+            { transform: "translateY(0) scale(1, 1)" },
+          ],
+          { duration: 450, easing: "ease-out", composite: "add" },
+        );
       icon.animate(
         [
           { transform: "translateY(0) scale(1)" },
@@ -297,11 +331,7 @@ function makeParticles() {
     const angle = Math.random() * Math.PI * 2;
     const distance = 60 + Math.random() * 240;
     const kind =
-      Math.random() < 0.12
-        ? "star"
-        : Math.random() < 0.35
-          ? "glow"
-          : "dot";
+      Math.random() < 0.12 ? "star" : Math.random() < 0.35 ? "glow" : "dot";
     return {
       kind,
       left: Math.random() * 100,
@@ -326,9 +356,9 @@ function makeParticles() {
 function ParticleBurst() {
   // generar recién en el cliente: valores aleatorios en el primer render
   // rompen la hidratación (el HTML del servidor nunca coincide)
-  const [particles, setParticles] = useState<
-    ReturnType<typeof makeParticles>
-  >([]);
+  const [particles, setParticles] = useState<ReturnType<typeof makeParticles>>(
+    [],
+  );
   useEffect(() => {
     setParticles(makeParticles());
   }, []);
@@ -435,7 +465,9 @@ function HoloCard({ children }: { children: ReactNode }) {
             : "perspective(800px) scale(1)",
           // seguir al mouse con un pelín de suavizado: sin esto el tilt
           // engancha de golpe al entrar y tiembla con cada pixel
-          transition: hover ? "transform 0.12s ease-out" : "transform 0.5s ease",
+          transition: hover
+            ? "transform 0.12s ease-out"
+            : "transform 0.5s ease",
           willChange: "transform",
         } as React.CSSProperties
       }
@@ -454,7 +486,8 @@ function HoloCard({ children }: { children: ReactNode }) {
           // la mezcla depende del tono y sale del tema (--holo-*): sobre oscuro
           // hay que sumar luz, sobre claro restarla. Con screen fijo, en claro
           // el arcoíris se volvía blanco y la tarjeta quedaba plana
-          mixBlendMode: "var(--holo-blend)" as React.CSSProperties["mixBlendMode"],
+          mixBlendMode:
+            "var(--holo-blend)" as React.CSSProperties["mixBlendMode"],
         }}
       />
       <div
@@ -464,7 +497,8 @@ function HoloCard({ children }: { children: ReactNode }) {
           opacity: hover ? "var(--holo-sheen-hover)" : "var(--holo-sheen)",
           background: `repeating-linear-gradient(115deg, var(--holo-sheen-color) 0%, transparent 4%, transparent 8%)`,
           backgroundPosition: `calc(var(--px) * 1%) calc(var(--py) * 1%)`,
-          mixBlendMode: "var(--holo-blend)" as React.CSSProperties["mixBlendMode"],
+          mixBlendMode:
+            "var(--holo-blend)" as React.CSSProperties["mixBlendMode"],
         }}
       />
       <div
@@ -528,9 +562,10 @@ function ScrollSpy({ sections }: { sections: Section[] }) {
       for (let i = 0; i < tops.length - 1; i++) {
         if (tops[i] <= threshold && Number.isFinite(tops[i])) {
           const span = tops[i + 1] - tops[i];
-          const f = Number.isFinite(span) && span > 0
-            ? (threshold - tops[i]) / span
-            : 0;
+          const f =
+            Number.isFinite(span) && span > 0
+              ? (threshold - tops[i]) / span
+              : 0;
           t = i + Math.min(1, Math.max(0, f));
         }
       }
@@ -586,7 +621,9 @@ function ScrollSpy({ sections }: { sections: Section[] }) {
   return (
     <div
       ref={railRef}
-      className="fixed top-1/2 right-6 z-30 hidden -translate-y-1/2 flex-col items-end gap-4 lg:flex"
+      // pointer-events-auto: la capa que lo envuelve (la de la cámara) los
+      // apaga para no tapar la página entera con un fixed inset-0
+      className="pointer-events-auto fixed top-1/2 right-6 z-30 hidden -translate-y-1/2 flex-col items-end gap-4 lg:flex"
     >
       <motion.span
         aria-hidden="true"
@@ -686,7 +723,12 @@ function DockSideButton({
     >
       <motion.button
         type="button"
-        initial={{ x: -dir * DOCK_POP_IN, scaleX: 0.3, scaleY: 0.55, opacity: 0 }}
+        initial={{
+          x: -dir * DOCK_POP_IN,
+          scaleX: 0.3,
+          scaleY: 0.55,
+          opacity: 0,
+        }}
         animate={{
           x: 0,
           scaleX: [0.3, 1.32, 0.94, 1],
@@ -695,8 +737,16 @@ function DockSideButton({
         }}
         transition={{
           x: { type: "spring", stiffness: 210, damping: 19, mass: 0.9 },
-          scaleX: { duration: 0.95, times: [0, 0.42, 0.72, 1], ease: "easeOut" },
-          scaleY: { duration: 0.95, times: [0, 0.42, 0.72, 1], ease: "easeOut" },
+          scaleX: {
+            duration: 0.95,
+            times: [0, 0.42, 0.72, 1],
+            ease: "easeOut",
+          },
+          scaleY: {
+            duration: 0.95,
+            times: [0, 0.42, 0.72, 1],
+            ease: "easeOut",
+          },
           opacity: { duration: 0.3 },
         }}
         // se estira desde el lado del dock, no desde su centro
@@ -763,7 +813,13 @@ function ThemeToggle({
 // gemelo del botón de tono, pero a la derecha del dock: cambia el idioma de
 // todo el sitio. Muestra el código del idioma al que se pasa (no el actual),
 // igual que el botón de tono muestra el ícono del tono al que se cambia
-function LangToggle({ x, visible }: { x: MotionValue<number>; visible: boolean }) {
+function LangToggle({
+  x,
+  visible,
+}: {
+  x: MotionValue<number>;
+  visible: boolean;
+}) {
   const { lang, setLang, t } = useLang();
 
   return (
@@ -1065,10 +1121,7 @@ function Navbar({
             {item.id === "asistente" ? (
               // data-assistant-icon: de acá sale (y acá vuelve) el logo que
               // vuela hacia el aviso de OneChater
-              <span
-                data-assistant-icon
-                className="block h-5 w-5"
-              >
+              <span data-assistant-icon className="block h-5 w-5">
                 <OneChaterLogo
                   className="h-5 w-5"
                   hideBottom={assistantBallAway}
@@ -1148,11 +1201,24 @@ const techIcons: Record<string, { icon: IconType; color: string }> = {
   Python: { icon: SiPython, color: "#3776ab" },
   "Node.js": { icon: SiNodedotjs, color: "#5fa04e" },
   PostgreSQL: { icon: SiPostgresql, color: "#4169e1" },
-  // marcas de logo negro: en fondo oscuro van en claro
-  "Next.js": { icon: SiNextdotjs, color: "#ffffff" },
+  // marcas de logo negro: siguen el color del texto del chip, así se ven
+  // claras en tono oscuro y oscuras en tono claro (con un #ffffff fijo el
+  // logo desaparecía en el tono claro)
+  "Next.js": { icon: SiNextdotjs, color: "currentColor" },
   "Tailwind CSS": { icon: SiTailwindcss, color: "#06b6d4" },
   Prisma: { icon: SiPrisma, color: "#c7d2de" },
   React: { icon: SiReact, color: "#61dafb" },
+  // herramientas del día a día (bloque "Con qué trabajo" de Sobre Mí): mismo
+  // mapa que el stack de los proyectos, porque los chips son los mismos.
+  // "VS Code" no está: react-icons no trae ese logo, y el chip sin icono
+  // queda bien igual
+  "Arch Linux": { icon: SiArchlinux, color: "#1793d1" },
+  Git: { icon: SiGit, color: "#f05032" },
+  // GitHub y Vercel tienen logo negro: con un blanco fijo desaparecen en tono
+  // claro, así que siguen el color del texto del chip y andan en los dos
+  GitHub: { icon: SiGithub, color: "currentColor" },
+  Vercel: { icon: SiVercel, color: "currentColor" },
+  "Claude Code": { icon: SiAnthropic, color: "#d97757" },
 };
 
 // los enlaces que salen del sitio se abren en otra pestaña; los internos
@@ -1243,23 +1309,64 @@ const GO_TARGETS: Record<
   { tab: "inicio" | "sobre"; id: string; label: (t: Copy) => string }
 > = {
   inicio: { tab: "inicio", id: "top", label: (t) => t.nav.inicio },
-  proyectos: { tab: "inicio", id: "proyectos", label: (t) => t.sections.proyectos },
-  onechater: { tab: "inicio", id: "proyecto-onechater", label: () => "OneChater" },
+  proyectos: {
+    tab: "inicio",
+    id: "proyectos",
+    label: (t) => t.sections.proyectos,
+  },
+  onechater: {
+    tab: "inicio",
+    id: "proyecto-onechater",
+    label: () => "OneChater",
+  },
   antena8: { tab: "inicio", id: "proyecto-antena-8", label: () => "Antena 8" },
   colorlab: { tab: "inicio", id: "proyecto-colorlab", label: () => "ColorLab" },
-  educacion: { tab: "inicio", id: "educacion", label: (t) => t.sections.educacion },
+  educacion: {
+    tab: "inicio",
+    id: "educacion",
+    label: (t) => t.sections.educacion,
+  },
   certificados: {
     tab: "inicio",
     id: "certificados",
     label: (t) => t.sections.certificados,
   },
-  "sobre-mi": { tab: "sobre", id: "sobre-mi", label: (t) => t.sections.sobreMi },
+  "sobre-mi": {
+    tab: "sobre",
+    id: "sobre-mi",
+    label: (t) => t.sections.sobreMi,
+  },
   contribuciones: {
     tab: "sobre",
     id: "contribuciones",
     label: (t) => t.sections.contribuciones,
   },
 };
+
+// canales de contacto: el nombre y la dirección son marca, la descripción de
+// cada uno sale del diccionario por `id`
+const contactChannels: {
+  id: keyof Copy["contact"]["channels"];
+  label: string;
+  handle: string;
+  href: string;
+  icon: IconType;
+}[] = [
+  {
+    id: "github",
+    label: "GitHub",
+    handle: "github.com/fabriciovla",
+    href: "https://github.com/fabriciovla",
+    icon: SiGithub,
+  },
+  {
+    id: "linkedin",
+    label: "LinkedIn",
+    handle: "in/fabriciovarela",
+    href: "https://www.linkedin.com/in/fabriciovarela",
+    icon: FaLinkedin,
+  },
+];
 
 const certifications: {
   id: keyof Copy["certifications"];
@@ -1295,16 +1402,49 @@ const certifications: {
   },
 ];
 
+// fila de "Sobre Mí": número y etiqueta a la izquierda, contenido a la
+// derecha, separada por una línea. Todas comparten la misma caja para que la
+// lectura tenga un solo ritmo, tenga adentro un párrafo o una fila de chips
+function AboutRow({
+  id,
+  index,
+  title,
+  children,
+}: {
+  id: string;
+  index: number;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      id={id}
+      className="grid scroll-mt-24 gap-x-8 gap-y-3 border-t border-black/10 py-8 sm:grid-cols-[10rem_1fr]"
+    >
+      <div className="flex items-baseline gap-3">
+        <span className="font-mono text-xs text-black/40">
+          {String(index).padStart(2, "0")}
+        </span>
+        <h3 className="font-title text-base font-semibold">{title}</h3>
+      </div>
+      <div className="flex flex-col gap-4">{children}</div>
+    </div>
+  );
+}
+
+// medida de lectura de la sección: el renglón no se estira a todo el ancho
+const ABOUT_TEXT = "max-w-[56ch] text-lg leading-8 text-black/80";
+
 type ContributionDay = { date: string; count: number; level: number };
 
-// escala de GitHub en su versión oscura: el nivel 0 es un hueco tenue y
-// los verdes van de oscuro a brillante (al revés que en fondo claro)
+// la escala vive en globals.css, una por tono: los verdes de GitHub son marca
+// y no se dan vuelta solos como tinta/papel, así que cada tono trae la suya
 const CONTRIB_LEVELS = [
-  "rgba(255,255,255,0.06)",
-  "#0e4429",
-  "#006d32",
-  "#26a641",
-  "#39d353",
+  "var(--contrib-0)",
+  "var(--contrib-1)",
+  "var(--contrib-2)",
+  "var(--contrib-3)",
+  "var(--contrib-4)",
 ];
 
 function GithubContributions() {
@@ -1352,7 +1492,10 @@ function GithubContributions() {
   });
 
   return (
-    <div id="contribuciones" className="flex w-full scroll-mt-24 flex-col gap-6">
+    <div
+      id="contribuciones"
+      className="flex w-full scroll-mt-24 flex-col gap-6"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-mono text-sm tracking-widest text-black/50 uppercase">
           {t.sections.contribuciones}
@@ -1363,7 +1506,9 @@ function GithubContributions() {
           </span>
         )}
       </div>
-      <div className="rounded-3xl border border-black/10 p-6">
+      {/* sin caja: es el último bloque de "Sobre Mí" y ahí ya no hay tarjetas,
+          un recuadro solo acá vuelve a pesar */}
+      <div className="pt-1">
         {days ? (
           <div className="flex w-full flex-col gap-2">
             <div className="flex w-full gap-[2px]">
@@ -1378,7 +1523,10 @@ function GithubContributions() {
             </div>
             <div className="flex w-full gap-[2px]">
               {weeks.map((week, wi) => (
-                <div key={wi} className="flex min-w-0 flex-1 flex-col gap-[2px]">
+                <div
+                  key={wi}
+                  className="flex min-w-0 flex-1 flex-col gap-[2px]"
+                >
                   {Array.from({ length: 7 }).map((_, di) => {
                     const day = week[di];
                     return (
@@ -1625,8 +1773,7 @@ function AssistantScreen({
   }, [messages]);
 
   useEffect(() => {
-    const scrollbar =
-      window.innerWidth - document.documentElement.clientWidth;
+    const scrollbar = window.innerWidth - document.documentElement.clientWidth;
     document.body.style.overflow = "hidden";
     document.body.style.paddingRight = `${scrollbar}px`;
     const onKey = (event: KeyboardEvent) => {
@@ -1690,23 +1837,23 @@ function AssistantScreen({
             {t.assistant.suggestions.map((text, i) => {
               const Icon = chatSuggestionIcons[i];
               return (
-              <motion.button
-                key={text}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: 0.3,
-                  delay: 0.15 + i * 0.05,
-                  ease: "easeOut",
-                }}
-                onClick={() => {
-                  if (!busy && !notice) onSend(text);
-                }}
-                className="flex items-center gap-2 rounded-full border border-black/10 px-4 py-2 font-mono text-xs text-black/60 transition-colors hover:bg-black/5 hover:text-black"
-              >
-                <Icon className="h-4 w-4" />
-                {text}
-              </motion.button>
+                <motion.button
+                  key={text}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.3,
+                    delay: 0.15 + i * 0.05,
+                    ease: "easeOut",
+                  }}
+                  onClick={() => {
+                    if (!busy && !notice) onSend(text);
+                  }}
+                  className="flex items-center gap-2 rounded-full border border-black/10 px-4 py-2 font-mono text-xs text-black/60 transition-colors hover:bg-black/5 hover:text-black"
+                >
+                  <Icon className="h-4 w-4" />
+                  {text}
+                </motion.button>
               );
             })}
           </div>
@@ -1739,124 +1886,124 @@ function AssistantScreen({
           )}
         </div>
       ) : (
-      <div className="relative mx-auto min-h-0 w-full max-w-3xl flex-1">
-      <div
-        ref={scrollRef}
-        className="flex h-full flex-col gap-3 overflow-y-auto px-10 pt-6 pb-32"
-      >
-        {/* espaciador: ancla la conversación abajo, crece hacia arriba */}
-        <div className="mt-auto" aria-hidden="true" />
-        {messages.map((message, i) => {
-          const isUser = message.role === "user";
-          return (
-            <motion.div
-              key={i}
-              layout="position"
-              // vuelo del hijo desprendido: al montarse, la burbuja del
-              // usuario mide la distancia hasta el dock y anima desde ahí
-              // (FLIP con WAAPI: determinístico, anclado al borde derecho)
-              ref={(el) => {
-                if (!isUser || !el) return;
-                const f = flight.current;
-                if (!f || f.index !== i) return;
-                flight.current = null;
-                // primer mensaje: la cobertura de las pelotas tapa todo,
-                // el vuelo no se vería
-                if (phase !== "idle") return;
-                const to = el.getBoundingClientRect();
-                const dx = f.rect.right - 6 - to.right;
-                const dy =
-                  f.rect.top + f.rect.height / 2 - (to.top + to.height / 2);
-                el.animate(
-                  [
-                    {
-                      transform: `translate(${dx}px, ${dy}px) scale(0.95)`,
-                      borderRadius: "24px",
-                    },
-                    {
-                      transform: "translate(0, 0) scale(1)",
-                      borderRadius: "16px",
-                    },
-                  ],
-                  {
-                    duration: 450,
-                    easing: "cubic-bezier(0.16, 1, 0.3, 1)",
-                  },
-                );
-              }}
-              // al reabrir el chat, cada burbuja aparece con un pop suave
-              // (fade + leve subida y escala) en orden escalonado; los
-              // mensajes nuevos conservan su animación propia
-              initial={
-                i < mountedCount.current
-                  ? { opacity: 0, y: 14, scale: 0.96 }
-                  : isUser
-                    ? false
-                    : { opacity: 0, y: 16 }
-              }
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{
-                duration: 0.3,
-                ease: "easeOut",
-                delay: i < mountedCount.current ? 0.12 + i * 0.045 : 0,
-                layout: { duration: 0.45, ease: [0.16, 1, 0.3, 1] },
-              }}
-              style={{ borderRadius: 16 }}
-              className={`max-w-[85%] px-4 py-2.5 text-base leading-7 ${
-                isUser
-                  ? "self-end bg-black whitespace-pre-wrap text-white"
-                  : "self-start border border-black/10 bg-black/[.02] text-black/80"
-              }`}
-            >
-              {message.content ? (
-                isUser ? (
-                  message.content
-                ) : (
-                  <Markdown
-                    remarkPlugins={[remarkGfm]}
-                    components={markdownComponents}
-                  >
-                    {message.content}
-                  </Markdown>
-                )
-              ) : (
-                <ThinkingDots />
-              )}
-              {/* la respuesta trajo una acción: se ofrece como botón porque
+        <div className="relative mx-auto min-h-0 w-full max-w-3xl flex-1">
+          <div
+            ref={scrollRef}
+            className="flex h-full flex-col gap-3 overflow-y-auto px-10 pt-6 pb-32"
+          >
+            {/* espaciador: ancla la conversación abajo, crece hacia arriba */}
+            <div className="mt-auto" aria-hidden="true" />
+            {messages.map((message, i) => {
+              const isUser = message.role === "user";
+              return (
+                <motion.div
+                  key={i}
+                  layout="position"
+                  // vuelo del hijo desprendido: al montarse, la burbuja del
+                  // usuario mide la distancia hasta el dock y anima desde ahí
+                  // (FLIP con WAAPI: determinístico, anclado al borde derecho)
+                  ref={(el) => {
+                    if (!isUser || !el) return;
+                    const f = flight.current;
+                    if (!f || f.index !== i) return;
+                    flight.current = null;
+                    // primer mensaje: la cobertura de las pelotas tapa todo,
+                    // el vuelo no se vería
+                    if (phase !== "idle") return;
+                    const to = el.getBoundingClientRect();
+                    const dx = f.rect.right - 6 - to.right;
+                    const dy =
+                      f.rect.top + f.rect.height / 2 - (to.top + to.height / 2);
+                    el.animate(
+                      [
+                        {
+                          transform: `translate(${dx}px, ${dy}px) scale(0.95)`,
+                          borderRadius: "24px",
+                        },
+                        {
+                          transform: "translate(0, 0) scale(1)",
+                          borderRadius: "16px",
+                        },
+                      ],
+                      {
+                        duration: 450,
+                        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+                      },
+                    );
+                  }}
+                  // al reabrir el chat, cada burbuja aparece con un pop suave
+                  // (fade + leve subida y escala) en orden escalonado; los
+                  // mensajes nuevos conservan su animación propia
+                  initial={
+                    i < mountedCount.current
+                      ? { opacity: 0, y: 14, scale: 0.96 }
+                      : isUser
+                        ? false
+                        : { opacity: 0, y: 16 }
+                  }
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{
+                    duration: 0.3,
+                    ease: "easeOut",
+                    delay: i < mountedCount.current ? 0.12 + i * 0.045 : 0,
+                    layout: { duration: 0.45, ease: [0.16, 1, 0.3, 1] },
+                  }}
+                  style={{ borderRadius: 16 }}
+                  className={`max-w-[85%] px-4 py-2.5 text-base leading-7 ${
+                    isUser
+                      ? "self-end bg-black whitespace-pre-wrap text-white"
+                      : "self-start border border-black/10 bg-black/[.02] text-black/80"
+                  }`}
+                >
+                  {message.content ? (
+                    isUser ? (
+                      message.content
+                    ) : (
+                      <Markdown
+                        remarkPlugins={[remarkGfm]}
+                        components={markdownComponents}
+                      >
+                        {message.content}
+                      </Markdown>
+                    )
+                  ) : (
+                    <ThinkingDots />
+                  )}
+                  {/* la respuesta trajo una acción: se ofrece como botón porque
                   ejecutarla cierra el chat, y eso no puede pasar solo */}
-              {message.actions && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {message.actions.map((action) => (
-                    <motion.button
-                      key={`${action.verb}:${action.target}`}
-                      type="button"
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.25, ease: "easeOut" }}
-                      onClick={() => onAction(action)}
-                      className="flex items-center gap-1.5 rounded-full border border-black/15 px-3 py-1.5 font-mono text-xs text-black/70 transition-colors hover:bg-black/5 hover:text-black"
-                    >
-                      {actionLabel(action, t)}
-                      <HiOutlineArrowRight className="h-3.5 w-3.5" />
-                    </motion.button>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          );
-        })}
-      </div>
-      {/* fundido superior sutil: los mensajes se desvanecen contra el color
+                  {message.actions && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {message.actions.map((action) => (
+                        <motion.button
+                          key={`${action.verb}:${action.target}`}
+                          type="button"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.25, ease: "easeOut" }}
+                          onClick={() => onAction(action)}
+                          className="flex items-center gap-1.5 rounded-full border border-black/15 px-3 py-1.5 font-mono text-xs text-black/70 transition-colors hover:bg-black/5 hover:text-black"
+                        >
+                          {actionLabel(action, t)}
+                          <HiOutlineArrowRight className="h-3.5 w-3.5" />
+                        </motion.button>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+          {/* fundido superior sutil: los mensajes se desvanecen contra el color
           de fondo al pasar bajo el header, sin blur */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-10"
-        style={{
-          background:
-            "linear-gradient(to bottom, var(--background), transparent)",
-        }}
-      />
-      </div>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 h-10"
+            style={{
+              background:
+                "linear-gradient(to bottom, var(--background), transparent)",
+            }}
+          />
+        </div>
       )}
       {phase !== "idle" &&
         createPortal(
@@ -2544,12 +2691,19 @@ function DemoCloud({
   );
 }
 
-// botón animado de la fila de enlaces del hero. Por ahora es solo la pieza
-// visual: no dispara nada, la acción se define después
-function AnimatedButton({ label }: { label: string }) {
+// botón animado de la fila de enlaces del hero: dispara la cámara, que se va
+// hacia la pelota de abajo del logo del dock
+function AnimatedButton({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
   return (
     <motion.button
       type="button"
+      onClick={onClick}
       initial="rest"
       animate="rest"
       whileHover="hover"
@@ -2675,15 +2829,136 @@ export default function Home() {
   const toggleX = useTransform(dockLeft, (l) => l - DOCK_SIDE_GAP - 56);
   const langX = useTransform(dockRight, (r) => r + DOCK_SIDE_GAP);
 
+  // cámara: el botón de animación del hero mete la vista adentro de la pelota
+  // de abajo del logo del dock. No es una máscara creciendo — el contenido y el
+  // dock se escalan de verdad alrededor de esa pelota, así el movimiento se lee
+  // como un acercamiento y no como un telón que baja
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [camera, setCamera] = useState<CameraShot | null>(null);
+  // el disparo también en una ref: los useTransform de acá abajo se evalúan
+  // cuadro a cuadro y leyendo el state adentro se quedan con el del render
+  // viejo, que todavía era null
+  const shot = useRef<CameraShot | null>(null);
+  const dockLayer = useRef<HTMLDivElement>(null);
+  // dos recorridos separados, cada uno con su tiempo y su curva: el paneo
+  // (llevar la pelota al centro) se acomoda temprano y despacio, y el zoom sigue
+  // metiéndose después. Atados a un mismo progreso, el tramo final del paneo
+  // caía justo en el momento de más velocidad y el encuadre daba un volantazo
+  const camPan = useMotionValue(0);
+  const camZoomP = useMotionValue(0);
+  // la escala va exponencial (k^p) y no derecha: interpolando lineal, casi todo
+  // el acercamiento que se percibe pasa en los primeros cuadros y el resto del
+  // viaje parece frenarse solo
+  const camZoom = (p: number) => Math.pow(shot.current?.k ?? 1, p);
+  const camX = useTransform(camPan, (p) => p * (shot.current?.dx ?? 0));
+  const camY = useTransform(camPan, (p) => p * (shot.current?.dy ?? 0));
+  // nada se apaga en el camino: cada cosa se va de cuadro sola, que es lo que
+  // hace una cámara cuando se mete. Por eso el dock va sin tope: adentro tiene
+  // las otras dos pelotas del logo, que quedan a milímetros del centro del zoom
+  // y siguen a la vista hasta muy tarde — congelarlas antes se ve como si la
+  // animación se hubiera trabado
+  const camScale = useTransform(camZoomP, camZoom);
+  // el contenido sí lleva tope: es el que tiene texto e imágenes, o sea el
+  // caro de rasterizar, y para cuando llega ahí hasta el elemento más cercano
+  // al centro (el último párrafo, a más de 70px) salió hace rato por los bordes
+  const camPageScale = useTransform(camZoomP, (p) => Math.min(camZoom(p), 40));
+  // el cartel de salida recién sobre el final: antes de eso la pelota todavía
+  // no tapa el borde de abajo y el texto quedaría flotando sobre la página
+  const camHintFade = useTransform(camZoomP, [0.9, 1], [0, 1]);
+
+  function startCamera() {
+    // una cámara por vez, y nunca encima del cambio de tono: las dos salen de
+    // la misma pelota y se la disputarían
+    if (camera || themeAnim || themeBusy.current) return;
+    const icon = document.querySelector<HTMLElement>("[data-assistant-icon]");
+    const ball = icon && bottomBall(icon);
+    const content = contentRef.current;
+    // sin la pelota a la vista no hay a dónde ir: el botón no hace nada en vez
+    // de inventarse un destino
+    if (!ball || !content) return;
+    const box = content.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const next = {
+      ...ball,
+      dx: vw / 2 - ball.cx,
+      dy: vh / 2 - ball.cy,
+      // ya centrada, la pelota tiene que llegar a tapar hasta la esquina más
+      // lejana; el 1.1 es para que el borde nunca asome por un redondeo
+      k: (1.1 * Math.hypot(vw, vh)) / ball.d,
+      // el origen del zoom, en coordenadas del contenido: ese sí scrollea y no
+      // empieza en el borde del viewport, así que no sirve el punto de pantalla
+      ox: ball.cx - box.left,
+      oy: ball.cy - box.top,
+    };
+    shot.current = next;
+    setCamera(next);
+  }
+
+  // la vuelta recorre los mismos valores al revés: sale de golpe y se acomoda,
+  // que es como se siente retroceder. El paneo tarda un poco más que el zoom
+  // para que la página no aterrice de costado
+  function closeCamera() {
+    animate(camPan, 0, { duration: 1, ease: [0.16, 1, 0.3, 1] });
+    animate(camZoomP, 0, {
+      duration: 0.85,
+      ease: [0.16, 1, 0.3, 1],
+    }).finished.then(
+      () => setCamera(null),
+      () => {},
+    );
+  }
+  const closeCam = useRef(closeCamera);
+  closeCam.current = closeCamera;
+
+  useEffect(() => {
+    if (!camera) return;
+    // con movimiento reducido el viaje igual pasa, pero corto: lo que importa
+    // es dónde termina, no el paseo
+    const quick = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const pan = animate(camPan, 1, {
+      duration: quick ? 0.3 : 1,
+      ease: [0.4, 0, 0.2, 1],
+    });
+    // la curva arranca quieta y llega al final todavía a fondo: frenar sobre el
+    // final deja el último tramo (el que más se ve, porque la pelota ya ocupa
+    // media pantalla) arrastrándose
+    const zoom = animate(camZoomP, 1, {
+      duration: quick ? 0.35 : 1.5,
+      ease: [0.4, 0, 0.7, 0.9],
+    });
+    // el vidrio del dock tiene blur(28px): escalado decenas de veces son
+    // cientos de píxeles de radio sobre toda la pantalla y se caen los cuadros.
+    // Pasado ese punto el dock ya es un lavado plano y sacarle el filtro no se
+    // nota. Se escribe al DOM directo, sin estado: es un cambio por cuadro
+    const unwatch = camZoomP.on("change", (p) => {
+      const el = dockLayer.current;
+      if (!el) return;
+      if (p > 0.35) el.dataset.cameraFar = "1";
+      else delete el.dataset.cameraFar;
+    });
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeCam.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      pan.stop();
+      zoom.stop();
+      unwatch();
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [camera, camPan, camZoomP]);
+
   useEffect(() => {
     // durante el reveal se apaga: son dos getBoundingClientRect por frame, o
     // sea un layout sincrónico en cada frame de la animación, y el dock no se
     // mueve igual porque la página está congelada
-    if (toggleStage !== "done" || themeAnim) return;
+    if (toggleStage !== "done" || themeAnim || camera) return;
     let raf = 0;
     const tick = () => {
       const el =
-        document.querySelector("[role=status]") ?? document.querySelector("nav");
+        document.querySelector("[role=status]") ??
+        document.querySelector("nav");
       const host = dockContainer.current;
       if (el && host) {
         const dock = el.getBoundingClientRect();
@@ -2700,7 +2975,7 @@ export default function Home() {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [toggleStage, themeAnim, dockLeft, dockRight]);
+  }, [toggleStage, themeAnim, camera, dockLeft, dockRight]);
 
   // el barrido (logo borrando el mensaje y destapando las secciones) lo hace
   // el propio aviso; acá solo se espera a que termine para devolver la navbar
@@ -2726,9 +3001,7 @@ export default function Home() {
   } | null>(null);
   // veredicto del envío en curso para la animación de las pelotas: "ok"
   // completa la expansión, "blocked" la aborta (las pelotas vuelven)
-  const [sendOutcome, setSendOutcome] = useState<"ok" | "blocked" | null>(
-    null,
-  );
+  const [sendOutcome, setSendOutcome] = useState<"ok" | "blocked" | null>(null);
 
   // cambio de tono: la pelota de abajo del logo se va del dock, tapa la
   // pantalla mientras el tema cambia debajo, y después renace en el icono
@@ -2773,28 +3046,23 @@ export default function Home() {
     };
     const root = document.documentElement;
     const icon = document.querySelector<HTMLElement>("[data-assistant-icon]");
-    const rect = icon?.getBoundingClientRect();
+    const ball = icon && bottomBall(icon);
     // sin el icono a la vista (asistente abierto, aviso en el dock), sin
-    // soporte, con movimiento reducido, o con una pelota ya en el aire: el
-    // tono cambia de una
+    // soporte, con movimiento reducido, con una pelota ya en el aire o con la
+    // cámara adentro de esa misma pelota: el tono cambia de una
     if (
-      !rect ||
-      !rect.width ||
+      !ball ||
       !doc.startViewTransition ||
       window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
       themeBallAway ||
-      ballFlight
+      ballFlight ||
+      camera
     ) {
       applyTheme(next);
       return;
     }
 
-    // mismo mapeo del viewBox "14 18 74 72": la pelota de abajo está en
-    // (50, 70) y mide 34 unidades
-    const s = Math.min(rect.width / 74, rect.height / 72);
-    const d = 34 * s;
-    const cx = rect.left + rect.width / 2 + (50 - 51) * s;
-    const cy = rect.top + rect.height / 2 + (70 - 54) * s;
+    const { cx, cy, d } = ball;
     // clip-path circle() toma centro y radio, no esquina y diámetro
     root.style.setProperty("--ball-cx", `${cx}px`);
     root.style.setProperty("--ball-cy", `${cy}px`);
@@ -2835,9 +3103,11 @@ export default function Home() {
 
   // mientras se destapa el tono, la página no se toca. El puntero lo corta el
   // CSS de [data-morphing]; el scroll no, y es el peor: mueve el DOM vivo
-  // debajo de una foto quieta y el reveal se parte al medio
+  // debajo de una foto quieta y el reveal se parte al medio. Con la cámara
+  // adentro pasa lo mismo por otro lado: el origen del zoom se midió una vez y
+  // scrollear lo deja apuntando a cualquier lado
   useEffect(() => {
-    if (!themeAnim) return;
+    if (!themeAnim && !camera) return;
     const stop = (e: Event) => e.preventDefault();
     const scrollKeys = new Set([
       " ",
@@ -2861,7 +3131,7 @@ export default function Home() {
       window.removeEventListener("touchmove", stop, true);
       window.removeEventListener("keydown", stopKey, true);
     };
-  }, [themeAnim]);
+  }, [themeAnim, camera]);
 
   // renacimiento: las dos pelotas que quedaron giran y de ese giro sale la
   // tercera. useLayoutEffect y no useEffect para que la pelota nunca llegue a
@@ -2935,7 +3205,21 @@ export default function Home() {
           label: h.title,
           depth: 1,
         })),
+        { id: "sobre-herramientas", label: t.about.tools.title, depth: 1 },
+        { id: "sobre-fuera", label: t.about.offline.title, depth: 1 },
         { id: "contribuciones", label: t.sections.contribuciones, depth: 0 },
+      ];
+    }
+    if (activeTab === "contacto") {
+      return [
+        { id: "top", label: t.nav.inicio, depth: 0 },
+        { id: "contacto", label: t.nav.contacto, depth: 0 },
+        ...contactChannels.map((c) => ({
+          id: `contacto-${c.id}`,
+          label: c.label,
+          depth: 1,
+        })),
+        { id: "contacto-asistente", label: t.nav.asistente, depth: 1 },
       ];
     }
     return null;
@@ -2972,7 +3256,8 @@ export default function Home() {
     // scale del contenedor, y ese es el tamaño que tiene que copiar el aviso.
     // Al aplicarlo como medidas reales (sin transform) el texto sale nítido
     const r = nav?.getBoundingClientRect();
-    if (r) navBigSize.current = { w: Math.round(r.width), h: Math.round(r.height) };
+    if (r)
+      navBigSize.current = { w: Math.round(r.width), h: Math.round(r.height) };
     const t = setTimeout(() => setDockBig(false), 1500);
     // 1.5s de hold + 0.9s de compactado: la gota se despega con el dock ya
     // quieto en su forma final
@@ -3029,7 +3314,6 @@ export default function Home() {
     setShowNotice(false);
     setNoticeSeen(true);
   }, [activeTab]);
-
 
   // acciones que no sacan al visitante de la conversación: se aplican solas
   // apenas termina de escribirse la respuesta. El tono y el idioma se ven
@@ -3209,8 +3493,29 @@ export default function Home() {
 
   return (
     <LangContext.Provider value={{ lang, setLang, t }}>
-      <div
+      {/* el transform vive solo mientras dura el viaje, y al terminar se apaga
+          a mano: cualquier transform, aunque sea la identidad que deja framer,
+          convierte al contenido en bloque contenedor de todo lo que tenga
+          position:fixed adentro (el estallido de partículas, por ejemplo), y
+          eso deja de medirse contra el viewport */}
+      <motion.div
         id="top"
+        ref={contentRef}
+        style={
+          camera
+            ? {
+                x: camX,
+                y: camY,
+                scale: camPageScale,
+                transformOrigin: `${camera.ox}px ${camera.oy}px`,
+                // capa propia para todo el viaje: sin esto el navegador vuelve
+                // a rasterizar el texto en cada cuadro a una escala nueva y la
+                // cámara se entrecorta. Se pierde nitidez a medida que crece,
+                // que es justo lo que hace algo que te pasa por al lado
+                willChange: "transform",
+              }
+            : { transform: "none" }
+        }
         className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-start gap-16 px-10 pt-16 pb-32 text-left"
       >
         <motion.div
@@ -3223,9 +3528,7 @@ export default function Home() {
             <h1 className="font-title text-4xl font-semibold">
               Fabricio Varela
             </h1>
-            <p className="text-xl text-black/60">
-              {t.hero.role}
-            </p>
+            <p className="text-xl text-black/60">{t.hero.role}</p>
           </motion.div>
           <motion.p
             variants={enterItem}
@@ -3247,7 +3550,7 @@ export default function Home() {
                 {link.label}
               </a>
             ))}
-            <AnimatedButton label={t.hero.animation} />
+            <AnimatedButton label={t.hero.animation} onClick={startCamera} />
           </motion.div>
         </motion.div>
 
@@ -3449,48 +3752,127 @@ export default function Home() {
                         id={`cert-${slug(cert.title)}`}
                         className="scroll-mt-24"
                       >
-                      <HoloCard>
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <cert.icon className="h-5 w-5 text-black" />
-                            <h3 className="font-title text-lg font-semibold">
-                              {cert.title}
-                            </h3>
-                            <span className="text-black/40">·</span>
-                            <span className="text-base text-black/60">
-                              {cert.issuer}
+                        <HoloCard>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <cert.icon className="h-5 w-5 text-black" />
+                              <h3 className="font-title text-lg font-semibold">
+                                {cert.title}
+                              </h3>
+                              <span className="text-black/40">·</span>
+                              <span className="text-base text-black/60">
+                                {cert.issuer}
+                              </span>
+                            </div>
+                            <span className="font-mono text-sm text-black/40">
+                              {cert.code}
                             </span>
                           </div>
-                          <span className="font-mono text-sm text-black/40">
-                            {cert.code}
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-3 rounded-2xl border border-black/10 bg-black/[.02] p-4">
-                          <p className="text-base leading-7 text-black/70">
-                            {t.certifications[cert.id].description}
-                          </p>
-                          <div className="flex flex-wrap gap-2 font-mono text-xs text-black/60">
-                            {t.certifications[cert.id].tags.map((tag) => (
-                              <span
-                                key={tag}
-                                className="rounded-md border border-black/10 px-2 py-1"
-                              >
-                                {tag}
-                              </span>
-                            ))}
+                          <div className="flex flex-col gap-3 rounded-2xl border border-black/10 bg-black/[.02] p-4">
+                            <p className="text-base leading-7 text-black/70">
+                              {t.certifications[cert.id].description}
+                            </p>
+                            <div className="flex flex-wrap gap-2 font-mono text-xs text-black/60">
+                              {t.certifications[cert.id].tags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="rounded-md border border-black/10 px-2 py-1"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                            <a
+                              href={cert.link}
+                              {...externalLink(cert.link)}
+                              className="text-sm text-black/60 hover:text-black"
+                            >
+                              {t.cert.view}
+                            </a>
                           </div>
-                          <a
-                            href={cert.link}
-                            {...externalLink(cert.link)}
-                            className="text-sm text-black/60 hover:text-black"
-                          >
-                            {t.cert.view}
-                          </a>
-                        </div>
-                      </HoloCard>
+                        </HoloCard>
                       </div>
                     ))}
                   </div>
+                </div>
+              </motion.div>
+            ) : activeTab === "contacto" ? (
+              <motion.div
+                key="contacto"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                transition={{ duration: 0.15, ease: "easeInOut" }}
+                className="flex w-full flex-col gap-12"
+              >
+                <h2
+                  id="contacto"
+                  className="scroll-mt-24 font-mono text-sm tracking-widest text-black/50 uppercase"
+                >
+                  {t.nav.contacto}
+                </h2>
+                <div className="flex flex-col gap-4">
+                  <p className="max-w-[54ch] text-xl leading-[1.7] text-black">
+                    {t.contact.lede}
+                  </p>
+                  <p className="font-mono text-sm text-black/50">
+                    {t.contact.location}
+                  </p>
+                </div>
+                {/* mismo ritmo de filas que Sobre Mí, pero cada fila es el
+                    enlace entero: el objetivo del cursor es toda la banda, no
+                    dos palabras subrayadas */}
+                <div className="flex flex-col">
+                  {contactChannels.map((channel) => (
+                    <a
+                      key={channel.id}
+                      id={`contacto-${channel.id}`}
+                      href={channel.href}
+                      {...externalLink(channel.href)}
+                      className="group grid scroll-mt-24 items-center gap-x-8 gap-y-2 border-t border-black/10 py-7 sm:grid-cols-[10rem_1fr_auto]"
+                    >
+                      <div className="flex items-center gap-3">
+                        <channel.icon className="h-4 w-4 shrink-0 text-black/40 transition-colors group-hover:text-black" />
+                        <span className="font-title text-lg font-semibold">
+                          {channel.label}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="font-mono text-sm text-black/50 underline-offset-4 transition-colors group-hover:text-black group-hover:underline">
+                          {channel.handle}
+                        </span>
+                        <span className="max-w-[52ch] text-base leading-7 text-black/70">
+                          {t.contact.channels[channel.id]}
+                        </span>
+                      </div>
+                      <HiOutlineArrowRight className="hidden h-5 w-5 text-black/25 transition-all group-hover:translate-x-1 group-hover:text-black sm:block" />
+                    </a>
+                  ))}
+                </div>
+                {/* atajo al asistente: la mitad de lo que se pregunta por
+                    mensaje ya lo contesta él, y de paso se llega desde acá */}
+                <div className="flex flex-col items-start gap-4 border-t border-black/10 pt-8">
+                  <h3 className="font-title text-lg font-semibold">
+                    {t.contact.assistant.title}
+                  </h3>
+                  <p
+                    id="contacto-asistente"
+                    className="max-w-[56ch] scroll-mt-24 text-lg leading-8 text-black/80"
+                  >
+                    {t.contact.assistant.text}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTabSwitched(true);
+                      prevTab.current = "contacto";
+                      setActiveTab("asistente");
+                    }}
+                    className="flex items-center gap-2 rounded-full bg-black px-5 py-2.5 text-base text-white transition-opacity hover:opacity-85"
+                  >
+                    <OneChaterLogo className="h-4 w-4" />
+                    {t.contact.assistant.cta}
+                  </button>
                 </div>
               </motion.div>
             ) : (
@@ -3500,7 +3882,7 @@ export default function Home() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.98 }}
                 transition={{ duration: 0.15, ease: "easeInOut" }}
-                className="flex w-full flex-col gap-6"
+                className="flex w-full flex-col gap-12"
               >
                 <h2
                   id="sobre-mi"
@@ -3508,24 +3890,63 @@ export default function Home() {
                 >
                   {t.sections.sobreMi}
                 </h2>
-                <p className="max-w-2xl text-lg leading-8 text-black/70">
+                {/* entrada de lectura: renglones cortos y altos. Es el texto
+                    más largo del sitio y va en el tono pleno, no en /70: a
+                    esta cantidad de renglones el gris cansa */}
+                <p className="max-w-[54ch] text-xl leading-[1.7] text-black">
                   {t.about.intro}
                 </p>
-                <div className="flex flex-col gap-4">
-                  {t.about.highlights.map((item) => (
-                    <div
+                {/* sin tarjetas: cada punto es una fila con la etiqueta al
+                    costado y una línea que la separa de la anterior. Tres
+                    cajas iguales una debajo de la otra pesaban más que lo que
+                    dicen, y encima estiraban el renglón a todo el ancho */}
+                <div className="flex flex-col">
+                  {t.about.highlights.map((item, i) => (
+                    <AboutRow
                       key={item.id}
                       id={`sobre-${item.id}`}
-                      className="flex scroll-mt-24 flex-col gap-2 rounded-3xl border border-black/10 p-6"
+                      index={i + 1}
+                      title={item.title}
                     >
-                      <h3 className="font-title text-lg font-semibold">
-                        {item.title}
-                      </h3>
-                      <p className="text-base leading-7 text-black/70">
-                        {item.text}
-                      </p>
-                    </div>
+                      <p className={ABOUT_TEXT}>{item.text}</p>
+                    </AboutRow>
                   ))}
+                  <AboutRow
+                    id="sobre-herramientas"
+                    index={t.about.highlights.length + 1}
+                    title={t.about.tools.title}
+                  >
+                    {/* mismos chips que el stack de los proyectos: la
+                        herramienta se reconoce por el logo antes que por el
+                        nombre, y no hay que leer una lista */}
+                    <div className="flex flex-wrap gap-2 font-mono text-xs text-black/60">
+                      {t.about.tools.items.map((tool) => {
+                        const Icon = techIcons[tool]?.icon;
+                        return (
+                          <span
+                            key={tool}
+                            className="flex items-center gap-1.5 rounded-md border border-black/10 px-2 py-1"
+                          >
+                            {Icon && (
+                              <Icon size={14} color={techIcons[tool]?.color} />
+                            )}
+                            {tool}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <p className={ABOUT_TEXT}>{t.about.tools.note}</p>
+                  </AboutRow>
+                  <AboutRow
+                    id="sobre-fuera"
+                    index={t.about.highlights.length + 2}
+                    title={t.about.offline.title}
+                  >
+                    <p className={ABOUT_TEXT}>{t.about.offline.text}</p>
+                  </AboutRow>
+                  {/* cierra la serie: sin esta línea el último punto queda
+                      colgando contra las contribuciones */}
+                  <div className="border-t border-black/10" />
                 </div>
 
                 <GithubContributions />
@@ -3533,9 +3954,27 @@ export default function Home() {
             )}
           </AnimatePresence>
         </motion.div>
-      </div>
+      </motion.div>
       {activeTab !== "asistente" && scrollSections && (
-        <ScrollSpy key={activeTab} sections={scrollSections} />
+        // el rail también viaja: está pegado al viewport, así que sin la cámara
+        // encima se quedaría quieto contra un fondo que se acerca. Se va de
+        // cuadro por el costado, como todo lo demás
+        <motion.div
+          className="pointer-events-none fixed inset-0"
+          style={
+            camera
+              ? {
+                  x: camX,
+                  y: camY,
+                  scale: camPageScale,
+                  transformOrigin: `${camera.cx}px ${camera.cy}px`,
+                  willChange: "transform",
+                }
+              : { transform: "none" }
+          }
+        >
+          <ScrollSpy key={activeTab} sections={scrollSections} />
+        </motion.div>
       )}
       <AnimatePresence>
         {activeTab === "asistente" && (
@@ -3557,64 +3996,124 @@ export default function Home() {
           />
         )}
       </AnimatePresence>
-      {/* el dock recién sube (desde abajo del viewport) con la página cargada;
-          animar el contenedor y no la nav deja intacto el morph del layoutId */}
+      {/* capa aparte para la cámara: el dock ya tiene su propio transform (la
+          entrada desde abajo y el escalado), y meterle el zoom encima pisaría
+          uno de los dos. El dock no se desvanece, se va de cuadro por los
+          costados como todo lo demás. Terminado el viaje el transform se apaga:
+          framer deja la identidad escrita, y un transform vivo acá le mueve el
+          piso a la proyección del layoutId compartido con el aviso */}
       <motion.div
-        ref={dockContainer}
-        className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] flex justify-center px-6"
-        initial={{ y: 160, scale: 1.16 }}
-        animate={{ y: loaded ? 0 : 160, scale: dockBig ? 1.16 : 1 }}
-        transition={{
-          y: { duration: 0.75, delay: 0.35, ease: [0.16, 1, 0.3, 1] },
-          // el hold de "grande" ya no es un delay acá: lo marca dockBig, que
-          // así puede repetir el gesto cuando vuelve del aviso
-          scale: { duration: 0.9, ease: [0.16, 1, 0.3, 1] },
-        }}
+        ref={dockLayer}
+        className="pointer-events-none fixed inset-0 z-[60]"
+        style={
+          camera
+            ? {
+                x: camX,
+                y: camY,
+                scale: camScale,
+                transformOrigin: `${camera.cx}px ${camera.cy}px`,
+                willChange: "transform",
+              }
+            : { transform: "none" }
+        }
       >
-        {activeTab === "asistente" ? (
-          <AssistantDock
-            busy={chatBusy}
-            onSend={sendChat}
-            notice={chatNotice}
-            match={matchMode}
-            onMatch={setMatchMode}
-          />
-        ) : showNotice ? (
-          <DockNotice
-            from={noticeFrom.current}
-            size={navBigSize.current}
-            endSize={navSmallSize.current}
-            active={activeTab}
-            leaving={noticeLeaving}
-            onClose={dismissNotice}
-          />
-        ) : (
-          <Navbar
-            active={activeTab}
-            onChange={(label) => {
-              setTabSwitched(true);
-              if (label !== "asistente") prevTab.current = label;
-              setActiveTab(label);
-            }}
-            assistantBallAway={!!ballFlight || themeBallAway}
-            revealed={loaded}
-            big={dockBig}
-          />
-        )}
-        {/* fuera del ternario: el botón sigue ahí cuando el dock se convierte
-            en el aviso, y por eso no repite el desprendimiento al volver */}
-        {toggleStage !== "hidden" && activeTab !== "asistente" && (
-          <>
-            <ThemeToggle
-              x={toggleX}
-              visible={toggleStage === "done"}
-              light={light}
-              onToggle={switchTheme}
+        {/* el dock recién sube (desde abajo del viewport) con la página cargada;
+          animar el contenedor y no la nav deja intacto el morph del layoutId */}
+        <motion.div
+          ref={dockContainer}
+          className="pointer-events-none fixed inset-x-0 bottom-6 flex justify-center px-6"
+          initial={{ y: 160, scale: 1.16 }}
+          animate={{ y: loaded ? 0 : 160, scale: dockBig ? 1.16 : 1 }}
+          transition={{
+            y: { duration: 0.75, delay: 0.35, ease: [0.16, 1, 0.3, 1] },
+            // el hold de "grande" ya no es un delay acá: lo marca dockBig, que
+            // así puede repetir el gesto cuando vuelve del aviso
+            scale: { duration: 0.9, ease: [0.16, 1, 0.3, 1] },
+          }}
+        >
+          {activeTab === "asistente" ? (
+            <AssistantDock
+              busy={chatBusy}
+              onSend={sendChat}
+              notice={chatNotice}
+              match={matchMode}
+              onMatch={setMatchMode}
             />
-            <LangToggle x={langX} visible={toggleStage === "done"} />
-          </>
-        )}
+          ) : showNotice ? (
+            <DockNotice
+              from={noticeFrom.current}
+              size={navBigSize.current}
+              endSize={navSmallSize.current}
+              active={activeTab}
+              leaving={noticeLeaving}
+              onClose={dismissNotice}
+            />
+          ) : (
+            <Navbar
+              active={activeTab}
+              onChange={(label) => {
+                setTabSwitched(true);
+                if (label !== "asistente") prevTab.current = label;
+                setActiveTab(label);
+              }}
+              assistantBallAway={!!ballFlight || themeBallAway}
+              revealed={loaded}
+              big={dockBig}
+            />
+          )}
+          {/* fuera del ternario: el botón sigue ahí cuando el dock se convierte
+            en el aviso, y por eso no repite el desprendimiento al volver */}
+          {toggleStage !== "hidden" && activeTab !== "asistente" && (
+            <>
+              <ThemeToggle
+                x={toggleX}
+                visible={toggleStage === "done"}
+                light={light}
+                onToggle={switchTheme}
+              />
+              <LangToggle x={langX} visible={toggleStage === "done"} />
+            </>
+          )}
+        </motion.div>
       </motion.div>
+      {camera && (
+        // la cámara termina adentro de la pelota: esta copia nace clavada
+        // encima de la del dock (mismo color, mismo lugar) y sigue creciendo
+        // cuando el dock ya se fue de cuadro, sin tope de escala. Es la única
+        // capa sin will-change: promovida, el círculo se rasterizaría chico y
+        // llegaría al final con el borde hecho pedazos
+        <div className="fixed inset-0 z-[62]" onClick={() => closeCamera()}>
+          <motion.div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+            style={{
+              x: camX,
+              y: camY,
+              scale: camScale,
+              transformOrigin: `${camera.cx}px ${camera.cy}px`,
+            }}
+          >
+            <div
+              className="absolute rounded-full bg-black"
+              style={{
+                left: camera.cx - camera.d / 2,
+                top: camera.cy - camera.d / 2,
+                width: camera.d,
+                height: camera.d,
+              }}
+            />
+          </motion.div>
+          {/* adentro de la pelota no queda nada a la vista: sin esta línea la
+              única salida es adivinar. Va fuera de la capa escalada, o saldría
+              agrandada por la misma cámara */}
+          <motion.p
+            style={{ opacity: camHintFade }}
+            className="absolute inset-x-0 bottom-10 text-center font-mono text-xs tracking-widest text-white/40 uppercase"
+          >
+            {t.hero.animationBack}
+          </motion.p>
+        </div>
+      )}
       {ballFlight && (
         <FlyingBall from={ballFlight} onDone={() => setBallFlight(null)} />
       )}
