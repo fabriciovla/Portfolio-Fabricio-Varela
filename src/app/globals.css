@@ -1,16 +1,77 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fdfbf7;
-  --foreground: #171717;
+  color-scheme: dark;
+
+  /* los dos tonos completos viven siempre acá (no solo el activo): la pelota
+     que hace el cambio de tono necesita leer los colores a los que va antes
+     de aplicarlos, y así no hay que repetir los hex en el JS */
+  --bg-dark: #0d0c0b;
+  --bg-light: #fdfbf7;
+  --ink-dark: #f2efe8;
+  --ink-light: #171717;
+
+  /* fondo cálido casi negro + tinta cálida casi blanca: mantiene el aire
+     del papel original, pero en oscuro */
+  --background: var(--bg-dark);
+  --foreground: var(--ink-dark);
+
+  /* "tinta" = todo lo que en el diseño claro era negro (textos, bordes,
+     pelotas del logo, burbujas del usuario); "papel" = lo que iba encima
+     de la tinta y era blanco. Invertir estos dos da vuelta la página
+     entera sin tocar las cientos de clases text-black/60, border-black/10… */
+  --ink: var(--ink-dark);
+  --paper: var(--bg-dark);
+
+  /* vidrio del dock: sobre fondo oscuro el brillo va por luz agregada,
+     no por blanco opaco */
+  --glass-top: rgba(255, 255, 255, 0.14);
+  --glass-bottom: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.16);
+  --glass-filter: blur(24px) saturate(160%) brightness(1.6);
+  --glass-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.65), 0 4px 12px rgba(0, 0, 0, 0.45),
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.28),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.35);
+
+}
+
+/* tono claro: alcanza con dar vuelta tinta/papel y aflojar el vidrio, que
+   sobre fondo claro se apoya en blanco opaco en vez de agregar luz */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --background: var(--bg-light);
+  --foreground: var(--ink-light);
+
+  --ink: var(--ink-light);
+  --paper: var(--bg-light);
+
+  --glass-top: rgba(255, 255, 255, 0.8);
+  --glass-bottom: rgba(255, 255, 255, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.9);
+  --glass-filter: blur(24px) saturate(180%) brightness(1.05);
+  --glass-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.1),
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 1),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.06);
+
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-black: var(--ink);
+  --color-white: var(--paper);
   --font-sans: var(--font-serif);
   --font-mono: var(--font-geist-mono);
   --font-title: var(--font-sofia);
+}
+
+/* la selección con tinta sobre papel se vuelve ilegible al invertir */
+::selection {
+  background: var(--ink);
+  color: var(--paper);
 }
 
 html {
@@ -31,4 +92,64 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-serif), Georgia, serif;
+  transition:
+    background-color 0.45s ease,
+    color 0.45s ease;
+}
+
+/* ---- cambio de tono ---- */
+
+/* durante la captura de la view transition no puede haber ni una transición
+   corriendo: la foto del estado nuevo se saca en ese instante y congelaría los
+   colores a mitad de camino por el resto de la animación */
+:root[data-morphing] *,
+:root[data-morphing] *::before,
+:root[data-morphing] *::after {
+  transition: none !important;
+}
+
+/* el tono viejo se queda quieto debajo y el nuevo se revela por un círculo
+   centrado que crece hasta pasarse de la pantalla (200vmax cubre cualquier
+   proporción). La pelota que viaja desde el dock aterriza justo en ese centro,
+   así que el tono nuevo sale de adentro de ella */
+::view-transition-old(root) {
+  animation: none;
+  z-index: -1;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  /* el UA los mezcla con plus-lighter para su crossfade; con un recorte duro
+     eso lavaría los colores donde se superponen */
+  mix-blend-mode: normal;
+}
+
+/* la ventana arranca del tamaño y la posición de la pelota del dock (--ball-*,
+   que las pone el JS al apretar): desde el primer frame lo que se ve adentro
+   de la pelota ya es el tono nuevo. Después viaja al centro creciendo, se
+   presenta un instante y ahí sí se extiende a toda la pantalla */
+::view-transition-new(root) {
+  mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="white"/></svg>')
+    var(--ball-x) var(--ball-y) / var(--ball-d) no-repeat;
+  animation: theme-reveal 2.2s;
+  animation-fill-mode: both;
+}
+
+@keyframes theme-reveal {
+  0% {
+    mask-position: var(--ball-x) var(--ball-y);
+    mask-size: var(--ball-d);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  /* ya en el medio, presentándose */
+  32%,
+  48% {
+    mask-position: 50% 50%;
+    mask-size: var(--ball-big);
+    animation-timing-function: cubic-bezier(0.85, 0, 0.15, 1);
+  }
+  100% {
+    mask-position: 50% 50%;
+    mask-size: 200vmax;
+  }
 }

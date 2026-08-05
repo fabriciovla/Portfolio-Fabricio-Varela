@@ -1,4 +1,4 @@
-const SYSTEM_PROMPT = `Sos OneChater, el asistente del portfolio de Fabricio Varela, web developer full stack de Tucumán, Argentina. Respondés en español, de forma breve, amigable y concreta. Si te preguntan tu nombre o quién sos, contestá que te llamás OneChater, igual que la plataforma de chat que creó Fabricio.
+const SYSTEM_PROMPT_ES = `Sos OneChater, el asistente del portfolio de Fabricio Varela, web developer full stack de Tucumán, Argentina. Respondés en español, de forma breve, amigable y concreta. Si te preguntan tu nombre o quién sos, contestá que te llamás OneChater, igual que la plataforma de chat que creó Fabricio.
 
 Sobre Fabricio:
 - Web developer con experiencia en desarrollo full stack, orientado a integrar inteligencia artificial en flujos de trabajo y aplicaciones para mejorar la productividad y los productos. Le apasiona entender cómo funcionan las cosas desde adentro, con un enfoque responsable y con criterio propio.
@@ -18,6 +18,27 @@ Estilo de respuesta:
 - No repitas contexto que ya se dijo en la conversación ni enumeres todo lo que sabés: respondé solo lo que se preguntó.
 - Usá **negritas** para resaltar nombres o datos clave, y algún emoji cuando sume 🙂. Podés usar listas con guiones si ayudan.
 - Nada de encabezados (#) ni bloques de código salvo que pidan código.`;
+
+const SYSTEM_PROMPT_EN = `You are OneChater, the assistant on the portfolio of Fabricio Varela, a full stack web developer from Tucumán, Argentina. You answer in English, briefly, warmly and concretely. If asked your name or who you are, say you're called OneChater, just like the chat platform Fabricio built.
+
+About Fabricio:
+- Web developer with full stack experience, focused on bringing artificial intelligence into workflows and applications to improve productivity and products. He's passionate about understanding how things work from the inside, with a responsible approach and his own judgment.
+- Stack: TypeScript, JavaScript, React, Next.js, Tailwind CSS, Node.js, PostgreSQL, Prisma, Python, HTML, CSS.
+- Projects:
+  - OneChater (onechater.com): unified chat platform integrating GPT, Claude and Gemini, with private personal memory, Fusion Mode to combine answers from several models, and semantic search over the history.
+  - Antena 8 (antena8noticias.com.ar): news portal for the 98.1 FM radio station in Tucumán, with a persistent radio player, live dollar exchange rate, weather, dark mode and an admin panel. Next.js + Prisma + PostgreSQL (Neon) + NextAuth v5 + Vercel Blob.
+  - ColorLab (colorlab-olive.vercel.app): harmonic palette generator built on OKLCH, with WCAG 2.1 contrast checking and export to CSS, HEX, OKLCH, HSL and Tailwind. Vanilla JS, no frameworks, no build.
+- Education: Higher Technical Degree in Web and Digital App Development (in progress, Instituto Santo Domingo) + self-taught since 2022 in software development and AI. Knowledge of Linux, Windows and virtual machines.
+- Certificates: Claude Code 101 and Claude Code in Action (Anthropic), AI Skills Fest 2026 (Microsoft).
+- Contact: GitHub github.com/fabriciovla · LinkedIn linkedin.com/in/fabriciovarela.
+
+You only talk about Fabricio, his work, his projects and related development topics. If asked anything else, kindly steer the conversation back to the portfolio.
+
+Response style:
+- Short and to the point: 1 to 3 sentences per answer. Only go longer (at most a short paragraph or a 3-4 item list) if detail is explicitly requested.
+- Don't repeat context already covered in the conversation and don't list everything you know: answer only what was asked.
+- Use **bold** to highlight names or key facts, and an emoji when it adds something 🙂. Bullet lists are fine when they help.
+- No headings (#) and no code blocks unless code is requested.`;
 
 // cadena de intentos: primero Groq (free tier propio, respuestas en menos
 // de un segundo), después OpenRouter como red de contención. Cada proveedor
@@ -89,10 +110,22 @@ let restingUntil = 0;
 const REST_FALLBACK_MS = 30 * 60 * 1000;
 const REST_MAX_MS = 6 * 60 * 60 * 1000;
 
-const RESTING_MSG =
-  "Zzz… me tomé un descansito para recargar energías 😴. Volvé en un rato y seguimos charlando.";
-const LIMIT_MSG = `Por hoy ya usaste tus ${RATE_LIMIT} preguntas 🙂. Volvé mañana, o escribile directo a Fabricio por LinkedIn (linkedin.com/in/fabriciovarela).`;
-const OOPS_MSG = "Uy, me distraje un segundo 😅. Probá de nuevo en un ratito.";
+// los avisos "hablados" también salen en el idioma en el que se está viendo
+// el sitio: llegan como una burbuja más del asistente
+type Lang = "es" | "en";
+
+const RESTING_MSG: Record<Lang, string> = {
+  es: "Zzz… me tomé un descansito para recargar energías 😴. Volvé en un rato y seguimos charlando.",
+  en: "Zzz… I took a little break to recharge 😴. Come back in a while and we'll keep chatting.",
+};
+const LIMIT_MSG: Record<Lang, string> = {
+  es: `Por hoy ya usaste tus ${RATE_LIMIT} preguntas 🙂. Volvé mañana, o escribile directo a Fabricio por LinkedIn (linkedin.com/in/fabriciovarela).`,
+  en: `You've used your ${RATE_LIMIT} questions for today 🙂. Come back tomorrow, or write to Fabricio directly on LinkedIn (linkedin.com/in/fabriciovarela).`,
+};
+const OOPS_MSG: Record<Lang, string> = {
+  es: "Uy, me distraje un segundo 😅. Probá de nuevo en un ratito.",
+  en: "Oops, I got distracted for a second 😅. Try again in a bit.",
+};
 
 // respuesta "hablada": texto plano con status 200 que la UI muestra como una
 // burbuja normal del asistente (nunca un error); el header le avisa a la UI
@@ -109,21 +142,14 @@ function say(text: string, state: "resting" | "limit" | "oops") {
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
 export async function POST(request: Request) {
-  const available = PROVIDERS.filter((p) => p.key);
-  if (available.length === 0) return say(RESTING_MSG, "resting");
-
-  if (Date.now() < restingUntil) return say(RESTING_MSG, "resting");
-
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  // con 0..RATE_LIMIT-1 usadas todavía queda turno; recién en RATE_LIMIT
-  // se corta, así entran las 5 preguntas completas
-  if (usedBy(ip).length >= RATE_LIMIT) return say(LIMIT_MSG, "limit");
-
+  // el body se lee primero porque de ahí sale el idioma, y hasta los avisos
+  // de descanso o de cupo se contestan en el idioma del visitante
   let messages: ChatMessage[];
+  let lang: Lang = "es";
   try {
     const body = await request.json();
     messages = body.messages;
+    if (body.lang === "en") lang = "en";
     if (
       !Array.isArray(messages) ||
       messages.length === 0 ||
@@ -140,6 +166,17 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: "Mensaje inválido." }, { status: 400 });
   }
+
+  const available = PROVIDERS.filter((p) => p.key);
+  if (available.length === 0) return say(RESTING_MSG[lang], "resting");
+
+  if (Date.now() < restingUntil) return say(RESTING_MSG[lang], "resting");
+
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+  // con 0..RATE_LIMIT-1 usadas todavía queda turno; recién en RATE_LIMIT
+  // se corta, así entran las 5 preguntas completas
+  if (usedBy(ip).length >= RATE_LIMIT) return say(LIMIT_MSG[lang], "limit");
 
   let upstreamBody: ReadableStream<Uint8Array> | null = null;
   let sawRateLimit = false;
@@ -170,7 +207,13 @@ export async function POST(request: Request) {
             stream: true,
             max_tokens: 350,
             ...provider.extra,
-            messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+            messages: [
+              {
+                role: "system",
+                content: lang === "en" ? SYSTEM_PROMPT_EN : SYSTEM_PROMPT_ES,
+              },
+              ...messages,
+            ],
           }),
         });
       } catch {
@@ -204,9 +247,9 @@ export async function POST(request: Request) {
         rateLimitReset < Infinity
           ? Math.min(rateLimitReset, Date.now() + REST_MAX_MS)
           : Date.now() + REST_FALLBACK_MS;
-      return say(RESTING_MSG, "resting");
+      return say(RESTING_MSG[lang], "resting");
     }
-    return say(OOPS_MSG, "oops");
+    return say(OOPS_MSG[lang], "oops");
   }
 
   // la pregunta consume cupo recién ahora, con la respuesta ya en camino

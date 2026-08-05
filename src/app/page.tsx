@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { createPortal, flushSync } from "react-dom";
 import {
   AnimatePresence,
   Reorder,
@@ -11,6 +18,7 @@ import {
   useSpring,
   useTransform,
   useVelocity,
+  type MotionValue,
 } from "framer-motion";
 import {
   HiOutlineAcademicCap,
@@ -19,7 +27,9 @@ import {
   HiOutlineEnvelope,
   HiOutlineFolder,
   HiOutlineHome,
+  HiOutlineMoon,
   HiOutlinePaperAirplane,
+  HiOutlineSun,
   HiOutlineUser,
   HiOutlineXMark,
 } from "react-icons/hi2";
@@ -40,13 +50,21 @@ import {
 import type { IconType } from "react-icons";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import {
+  LangContext,
+  copy,
+  useLang,
+  type Copy,
+  type Lang,
+} from "@/lib/i18n";
 
 // indicador de "pensando": tres pelotitas rebotando, a juego con el logo
 function ThinkingDots() {
+  const { t } = useLang();
   return (
     <div
       className="flex items-center gap-1.5 py-2"
-      aria-label="El asistente está pensando"
+      aria-label={t.assistant.thinking}
     >
       {[0, 1, 2].map((d) => (
         <motion.span
@@ -113,8 +131,12 @@ function OneChaterLogo({
       />
       {!hideBottom && (
         <path
+          data-logo-bottom
           d="M 50 56 Q 36 58 36 72 Q 38 86 52 84 Q 66 82 64 68 Q 62 56 50 56 Z"
           fill="currentColor"
+          // para que al "nacer" escale desde su propio centro y no desde el
+          // origen del viewBox
+          style={{ transformBox: "fill-box", transformOrigin: "center" }}
         />
       )}
     </svg>
@@ -263,9 +285,9 @@ const HOLO_SPECTRUM =
   "#ff3d81, #ff8a3d, #ffe83d, #4dff7a, #3de0ff, #6a3dff, #ff3dd6, #ff3d81";
 
 const PARTICLE_COLORS = [
-  "rgba(0,0,0,0.9)",
-  "rgba(0,0,0,0.7)",
-  "rgba(0,0,0,0.5)",
+  "rgba(255,255,255,0.9)",
+  "rgba(255,255,255,0.65)",
+  "rgba(255,255,255,0.45)",
 ];
 
 function makeParticles() {
@@ -352,7 +374,7 @@ function ParticleBurst() {
               background:
                 p.kind === "glow"
                   ? `radial-gradient(circle, ${p.color} 30%, transparent 70%)`
-                  : "rgba(0,0,0,0.6)",
+                  : "rgba(255,255,255,0.6)",
             }}
             initial={{ opacity: 0, x: 0, y: 0, scale: 0 }}
             animate={{
@@ -421,30 +443,31 @@ function HoloCard({ children }: { children: ReactNode }) {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 transition-opacity duration-300"
         style={{
-          opacity: hover ? 0.06 : 0.02,
+          opacity: hover ? 0.16 : 0.06,
           // giro suave del espectro (~1/3 de vuelta al cruzar la tarjeta);
           // a 3.6deg el arcoíris daba una vuelta entera y estroboscopeaba
           background: `conic-gradient(from calc(var(--px) * 1.2deg) at calc(var(--px) * 1%) calc(var(--py) * 1%), ${HOLO_SPECTRUM})`,
-          mixBlendMode: "multiply",
+          // sobre fondo oscuro el multiply apagaba el arcoíris: hay que sumar luz
+          mixBlendMode: "screen",
         }}
       />
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 transition-opacity duration-300"
         style={{
-          opacity: hover ? 0.05 : 0.02,
+          opacity: hover ? 0.12 : 0.05,
           background: `repeating-linear-gradient(115deg, rgba(255,255,255,0.9) 0%, transparent 4%, transparent 8%)`,
           backgroundPosition: `calc(var(--px) * 1%) calc(var(--py) * 1%)`,
-          mixBlendMode: "soft-light",
+          mixBlendMode: "screen",
         }}
       />
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 transition-opacity duration-300"
         style={{
-          opacity: hover ? 0.12 : 0,
+          opacity: hover ? 0.14 : 0,
           background: `radial-gradient(circle at calc(var(--px) * 1%) calc(var(--py) * 1%), rgba(255,255,255,0.95), transparent 45%)`,
-          mixBlendMode: "soft-light",
+          mixBlendMode: "screen",
         }}
       />
       <div className="relative flex flex-col gap-4">{children}</div>
@@ -465,6 +488,7 @@ const slug = (text: string) =>
 type Section = { id: string; label: string; depth: number };
 
 function ScrollSpy({ sections }: { sections: Section[] }) {
+  const { t } = useLang();
   const [active, setActive] = useState(sections[0]?.id);
   const railRef = useRef<HTMLDivElement>(null);
   const dotRefs = useRef<(HTMLSpanElement | null)[]>([]);
@@ -575,7 +599,7 @@ function ScrollSpy({ sections }: { sections: Section[] }) {
             className={`group flex flex-row-reverse items-center gap-2.5 ${
               isSub ? "-mt-2" : ""
             }`}
-            aria-label={`Ir a ${section.label}`}
+            aria-label={t.scrollspy.goTo(section.label)}
           >
             <span
               ref={(el) => {
@@ -607,13 +631,156 @@ function ScrollSpy({ sections }: { sections: Section[] }) {
 
 const dockGlassStyle = {
   background:
-    "linear-gradient(180deg, rgba(255,255,255,0.8), rgba(255,255,255,0.4))",
-  backdropFilter: "blur(24px) saturate(180%) brightness(1.05)",
-  WebkitBackdropFilter: "blur(24px) saturate(180%) brightness(1.05)",
-  border: "1px solid rgba(255,255,255,0.9)",
-  boxShadow:
-    "0 24px 60px rgba(0,0,0,0.25), 0 4px 12px rgba(0,0,0,0.1), inset 0 1.5px 1.5px rgba(255,255,255,1), inset 0 -2px 3px rgba(0,0,0,0.06)",
+    "linear-gradient(180deg, var(--glass-top), var(--glass-bottom))",
+  // filtro y sombra salen del tema: sobre fondo oscuro el vidrio aclara lo
+  // que tiene detrás, sobre fondo claro se apoya en blanco opaco
+  backdropFilter: "var(--glass-filter)",
+  WebkitBackdropFilter: "var(--glass-filter)",
+  border: "1px solid var(--glass-border)",
+  boxShadow: "var(--glass-shadow)",
 } as const;
+
+// dock chico a la izquierda de la navbar para cambiar el tono de la página.
+// El tema real lo aplica el script del layout antes de pintar; acá solo se
+// lee el estado ya puesto en el <html> y se lo alterna
+// entrada de los botones del dock: nacen metidos debajo, estirados, y salen
+// hacia su lado asentándose con un resorte. Es una sola vez (initial solo
+// corre al montar); después `x` sigue al dock cuando cambia de ancho
+const DOCK_POP_IN = 74;
+
+// La posición y la entrada van en capas separadas a propósito: si la misma
+// `x` la anima framer y después la maneja un motion value, framer no le
+// devuelve el control y el botón queda clavado donde terminó la animación.
+// Afuera: sigue al borde del dock. Adentro: sale de abajo del dock estirado.
+function DockSideButton({
+  x,
+  dir,
+  visible,
+  onClick,
+  label,
+  className,
+  children,
+}: {
+  x: MotionValue<number>;
+  dir: -1 | 1;
+  visible: boolean;
+  onClick: () => void;
+  label: string;
+  className: string;
+  children: ReactNode;
+}) {
+  return (
+    <motion.div
+      className="pointer-events-none absolute top-1/2 left-1/2"
+      style={{ x, marginTop: -28 }}
+    >
+      <motion.button
+        type="button"
+        initial={{ x: -dir * DOCK_POP_IN, scaleX: 0.3, scaleY: 0.55, opacity: 0 }}
+        animate={{
+          x: 0,
+          scaleX: [0.3, 1.32, 0.94, 1],
+          scaleY: [0.55, 0.74, 1.06, 1],
+          opacity: visible ? 1 : 0,
+        }}
+        transition={{
+          x: { type: "spring", stiffness: 210, damping: 19, mass: 0.9 },
+          scaleX: { duration: 0.95, times: [0, 0.42, 0.72, 1], ease: "easeOut" },
+          scaleY: { duration: 0.95, times: [0, 0.42, 0.72, 1], ease: "easeOut" },
+          opacity: { duration: 0.3 },
+        }}
+        // se estira desde el lado del dock, no desde su centro
+        style={{
+          ...dockGlassStyle,
+          transformOrigin: dir === -1 ? "right center" : "left center",
+        }}
+        onClick={onClick}
+        aria-label={label}
+        className={className}
+      >
+        {children}
+      </motion.button>
+    </motion.div>
+  );
+}
+
+function ThemeToggle({
+  x,
+  visible,
+  light,
+  onToggle,
+}: {
+  // desplazamiento desde el centro del dock: se recalcula cuando el dock
+  // cambia de ancho (el aviso es más ancho) para que lo acompañe
+  x: MotionValue<number>;
+  visible: boolean;
+  // el tono lo maneja la página: acá no hay estado propio para que el sol y la
+  // luna cambien justo cuando cambia la página, y no al apretar (el cambio
+  // pasa recién cuando la pelota llega al medio de la pantalla)
+  light: boolean;
+  onToggle: () => void;
+}) {
+  const { t } = useLang();
+
+  return (
+    <DockSideButton
+      x={x}
+      dir={-1}
+      visible={visible}
+      onClick={onToggle}
+      label={light ? t.toggle.toDark : t.toggle.toLight}
+      className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full text-black/70 transition-colors hover:text-black"
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={light ? "sol" : "luna"}
+          initial={{ opacity: 0, rotate: -90, scale: 0.6 }}
+          animate={{ opacity: 1, rotate: 0, scale: 1 }}
+          exit={{ opacity: 0, rotate: 90, scale: 0.6 }}
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          className="block"
+        >
+          {light ? (
+            <HiOutlineMoon className="h-5 w-5" />
+          ) : (
+            <HiOutlineSun className="h-5 w-5" />
+          )}
+        </motion.span>
+      </AnimatePresence>
+    </DockSideButton>
+  );
+}
+
+// gemelo del botón de tono, pero a la derecha del dock: cambia el idioma de
+// todo el sitio. Muestra el código del idioma al que se pasa (no el actual),
+// igual que el botón de tono muestra el ícono del tono al que se cambia
+function LangToggle({ x, visible }: { x: MotionValue<number>; visible: boolean }) {
+  const { lang, setLang, t } = useLang();
+
+  return (
+    <DockSideButton
+      x={x}
+      dir={1}
+      visible={visible}
+      onClick={() => setLang(lang === "es" ? "en" : "es")}
+      label={t.toggle.lang}
+      className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full font-mono text-sm font-medium tracking-wide text-black/70 transition-colors hover:text-black"
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={t.toggle.langCode}
+          initial={{ opacity: 0, y: 8, scale: 0.6 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -8, scale: 0.6 }}
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          className="block"
+        >
+          {t.toggle.langCode}
+        </motion.span>
+      </AnimatePresence>
+    </DockSideButton>
+  );
+}
 
 // curva imán: se pega a los extremos (0 y 1) y acelera el salto en el medio
 const magnetCurve = (t: number, s = 5) =>
@@ -650,9 +817,11 @@ function Navbar({
   onChange,
   assistantBallAway = false,
   revealed = true,
+  big = false,
+  fadeItems = false,
 }: {
-  active: string;
-  onChange: (label: string) => void;
+  active: TabId;
+  onChange: (id: TabId) => void;
   // la pelota inferior del icono de Asistente está volando de vuelta desde
   // el chat: mostrar solo dos hasta que aterrice
   assistantBallAway?: boolean;
@@ -660,7 +829,13 @@ function Navbar({
   // opacity < 1 convierte al dock en backdrop root y le apaga el blur del
   // vidrio; al recuperarlo de golpe el color aparecía de un saque
   revealed?: boolean;
+  // estado "grande": secciones más separadas, en paralelo con la escala que
+  // aplica el contenedor
+  big?: boolean;
+  // al volver del aviso las secciones aparecen en vez de estar ya puestas
+  fadeItems?: boolean;
 }) {
+  const { lang, t } = useLang();
   const navRef = useRef<HTMLElement>(null);
   const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   // posición por `left` y ancho animados; `x` queda reservado para el gesto
@@ -738,7 +913,7 @@ function Navbar({
   const first = useRef(true);
   const activeIndex = Math.max(
     0,
-    navItems.findIndex((item) => item.label === active),
+    navItems.findIndex((item) => item.id === active),
   );
 
   const boundsOf = (index: number) => {
@@ -783,6 +958,15 @@ function Navbar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revealed, activeIndex]);
 
+  // cada sección cambia de ancho al cambiar de idioma: la burbuja se re-mide
+  // en el mismo frame para no quedar clavada sobre la palabra anterior
+  useLayoutEffect(() => {
+    const { x, w } = boundsOf(activeIndex);
+    bubbleLeft.jump(x);
+    bubbleW.jump(w);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
+
   return (
     <motion.nav
       ref={navRef}
@@ -796,13 +980,12 @@ function Navbar({
         x: navShift,
         transformOrigin: navOrigin,
         opacity: revealed ? 1 : 0,
-        // entra con las secciones separadas y recién después del hold se
-        // compacta al gap de siempre (0.25rem = gap-1)
-        gap: revealed ? "0.25rem" : "1.25rem",
+        // el hold de "separadas" lo marca `big` desde afuera, no un delay
+        gap: big ? "1.25rem" : "0.25rem",
         transition: [
           // el fade arranca junto con la subida del dock (delay 0.35s)
           "opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.4s",
-          "gap 0.9s cubic-bezier(0.16, 1, 0.3, 1) 1.5s",
+          "gap 0.9s cubic-bezier(0.16, 1, 0.3, 1)",
         ].join(", "),
       }}
     >
@@ -814,20 +997,20 @@ function Navbar({
           scaleX: stretchX,
           scaleY: squishY,
           background: dragging
-            ? "linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.12))"
-            : "linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.5))",
+            ? "linear-gradient(180deg, rgba(255,255,255,0.30), rgba(255,255,255,0.08))"
+            : "linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.09))",
           backdropFilter: dragging
-            ? "blur(8px) saturate(180%) brightness(1.12)"
+            ? "blur(8px) saturate(160%) brightness(1.5)"
             : "none",
           WebkitBackdropFilter: dragging
-            ? "blur(8px) saturate(180%) brightness(1.12)"
+            ? "blur(8px) saturate(160%) brightness(1.5)"
             : "none",
           border: dragging
-            ? "1px solid rgba(255,255,255,0.9)"
+            ? "1px solid rgba(255,255,255,0.3)"
             : "1px solid rgba(255,255,255,0)",
           boxShadow: dragging
-            ? "0 10px 28px rgba(0,0,0,0.2), 0 2px 8px rgba(0,0,0,0.1), inset 0 1.5px 1.5px rgba(255,255,255,1), inset 0 -3px 8px rgba(0,0,0,0.08), inset 3px 0 8px rgba(255,255,255,0.4), inset -3px 0 8px rgba(255,255,255,0.4)"
-            : "0 4px 12px rgba(0,0,0,0.1), inset 0 1px 1px rgba(255,255,255,0.9), inset 0 -1px 1px rgba(0,0,0,0.04)",
+            ? "0 10px 28px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.35), inset 0 1.5px 1.5px rgba(255,255,255,0.4), inset 0 -3px 8px rgba(0,0,0,0.3), inset 3px 0 8px rgba(255,255,255,0.15), inset -3px 0 8px rgba(255,255,255,0.15)"
+            : "0 4px 12px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.28), inset 0 -1px 1px rgba(0,0,0,0.25)",
         }}
         className="pointer-events-none absolute inset-y-1.5 overflow-hidden rounded-full transition-[background,box-shadow,border,backdrop-filter] duration-300"
       >
@@ -837,7 +1020,7 @@ function Navbar({
           style={{
             opacity: dragging ? 1 : 0,
             background:
-              "radial-gradient(120% 90% at 30% 0%, rgba(255,255,255,0.9), transparent 55%)",
+              "radial-gradient(120% 90% at 30% 0%, rgba(255,255,255,0.35), transparent 55%)",
           }}
         />
         <span
@@ -852,29 +1035,29 @@ function Navbar({
         />
       </motion.div>
       {navItems.map((item, index) => {
-        const isActive = active === item.label;
+        const isActive = active === item.id;
         return (
           <a
-            key={item.label}
+            key={item.id}
             ref={(el) => {
               itemRefs.current[index] = el;
             }}
             href={item.href}
-            onClick={() => onChange(item.label)}
+            onClick={() => onChange(item.id)}
             className={`relative flex flex-col items-center gap-0.5 rounded-full px-4 py-2 text-xs transition-all ${
               isActive ? "pointer-events-none" : ""
             }`}
             onMouseEnter={(event) => {
-              event.currentTarget.style.background = "rgba(255,255,255,0.35)";
+              event.currentTarget.style.background = "rgba(255,255,255,0.09)";
             }}
             onMouseLeave={(event) => {
               event.currentTarget.style.background = "";
             }}
           >
-            {item.label === "Asistente" ? (
-              // mismo layoutId que el aviso: este icono es el que viaja
-              <motion.span
-                layoutId="onechater-mark"
+            {item.id === "asistente" ? (
+              // data-assistant-icon: de acá sale (y acá vuelve) el logo que
+              // vuela hacia el aviso de OneChater
+              <span
                 data-assistant-icon
                 className="block h-5 w-5"
               >
@@ -882,14 +1065,14 @@ function Navbar({
                   className="h-5 w-5"
                   hideBottom={assistantBallAway}
                 />
-              </motion.span>
+              </span>
             ) : (
               <item.icon className="h-5 w-5" />
             )}
             <span
               className={isActive ? "font-medium text-black" : "text-black/60"}
             >
-              {item.label}
+              {t.nav[item.id]}
             </span>
           </a>
         );
@@ -934,8 +1117,7 @@ function Navbar({
               nearest = i;
             }
           });
-          if (navItems[nearest].label !== active)
-            onChange(navItems[nearest].label);
+          if (navItems[nearest].id !== active) onChange(navItems[nearest].id);
           else snapTo(nearest);
         }}
         onTap={() => {
@@ -958,37 +1140,59 @@ const techIcons: Record<string, { icon: IconType; color: string }> = {
   Python: { icon: SiPython, color: "#3776ab" },
   "Node.js": { icon: SiNodedotjs, color: "#5fa04e" },
   PostgreSQL: { icon: SiPostgresql, color: "#4169e1" },
-  "Next.js": { icon: SiNextdotjs, color: "#000000" },
+  // marcas de logo negro: en fondo oscuro van en claro
+  "Next.js": { icon: SiNextdotjs, color: "#ffffff" },
   "Tailwind CSS": { icon: SiTailwindcss, color: "#06b6d4" },
-  Prisma: { icon: SiPrisma, color: "#2d3748" },
+  Prisma: { icon: SiPrisma, color: "#c7d2de" },
   React: { icon: SiReact, color: "#61dafb" },
 };
 
-const links = [
+// los enlaces que salen del sitio se abren en otra pestaña; los internos
+// (anclas "#", archivos propios) siguen navegando en la misma
+function externalLink(href: string) {
+  return /^https?:\/\//i.test(href)
+    ? { target: "_blank" as const, rel: "noreferrer" as const }
+    : {};
+}
+
+// GitHub y LinkedIn son marcas; solo el currículum cambia de idioma
+const linksFor = (t: Copy) => [
   { label: "GitHub", href: "https://github.com/fabriciovla" },
   { label: "LinkedIn", href: "https://www.linkedin.com/in/fabriciovarela" },
-  { label: "Resume", href: "#" },
+  { label: t.hero.resume, href: "#" },
 ];
 
+// las secciones se identifican por id y no por su texto: así el idioma puede
+// cambiar sin que se pierda la pestaña activa ni los anclajes del scroll
+type TabId = "inicio" | "sobre" | "contacto" | "asistente";
+
 const navItems: {
-  label: string;
+  id: TabId;
   href: string;
   icon: IconType | typeof OneChaterLogo;
 }[] = [
-  { label: "Inicio", href: "#top", icon: HiOutlineHome },
-  { label: "Sobre Mí", href: "#top", icon: HiOutlineUser },
-  { label: "Contacto", href: "#", icon: HiOutlineEnvelope },
-  { label: "Asistente", href: "#", icon: OneChaterLogo },
+  { id: "inicio", href: "#top", icon: HiOutlineHome },
+  { id: "sobre", href: "#top", icon: HiOutlineUser },
+  { id: "contacto", href: "#", icon: HiOutlineEnvelope },
+  { id: "asistente", href: "#", icon: OneChaterLogo },
 ];
 
-const initialProjects = [
+// datos que no dependen del idioma; la descripción y el detalle del backend
+// salen del diccionario por `id`
+const initialProjects: {
+  id: keyof Copy["projects"];
+  title: string;
+  stack: string[];
+  site: string;
+  repo: string;
+  details: string;
+  featured: boolean;
+  logo: string;
+}[] = [
   {
+    id: "onechater",
     title: "OneChater",
-    description:
-      "Plataforma de chat unificada que integra GPT, Claude y Gemini con memoria personal privada, Fusion Mode para combinar respuestas de varios modelos y busqueda semantica en el historial.",
     stack: ["TypeScript", "HTML", "CSS", "JavaScript", "PLpgSQL", "Python"],
-    backend:
-      "Conexion de los asistentes: orquesta en simultaneo las APIs de OpenAI, Anthropic y Google, sincroniza el contexto entre modelos para el Fusion Mode y guarda la memoria personal cifrada por usuario.",
     site: "https://onechater.com",
     repo: "#",
     details: "#",
@@ -996,12 +1200,9 @@ const initialProjects = [
     logo: "/logos/onechater.svg",
   },
   {
+    id: "antena8",
     title: "Antena 8",
-    description:
-      "Portal de noticias de Antena 8 (98.1 FM, Tucuman) con cobertura de politica, economia, deportes y cultura. Incluye reproductor de radio persistente, cotizacion del dolar en tiempo real, clima, modo oscuro y panel administrativo con editor rich-text.",
     stack: ["Next.js", "TypeScript", "Tailwind CSS", "PostgreSQL", "Prisma"],
-    backend:
-      "API routes de Next.js con Prisma sobre PostgreSQL (Neon serverless), autenticacion con NextAuth v5 por credenciales y JWT, y Vercel Blob para el almacenamiento de imagenes.",
     site: "https://www.antena8noticias.com.ar/",
     repo: "https://github.com/fabriciovla/Antena-8-",
     details: "#",
@@ -1009,12 +1210,9 @@ const initialProjects = [
     logo: "/logos/antena8.png",
   },
   {
+    id: "colorlab",
     title: "ColorLab",
-    description:
-      "Generador de paletas de colores armonicas basado en el espacio de color OKLCH, con 6 tipos de armonia, chequeo de contraste WCAG 2.1 y exportacion a CSS variables, HEX, OKLCH, HSL y Tailwind CSS. Sin frameworks ni build, motor OKLCH propio.",
     stack: ["HTML", "CSS", "JavaScript"],
-    backend:
-      "Sin backend: todo el motor de color OKLCH corre client-side en JavaScript vanilla, sin dependencias ni build, servido como sitio estatico.",
     site: "https://colorlab-olive.vercel.app/",
     repo: "https://github.com/fabriciovla/ColorLab",
     details: "#",
@@ -1023,89 +1221,54 @@ const initialProjects = [
   },
 ];
 
-const education = [
+const certifications: {
+  id: keyof Copy["certifications"];
+  title: string;
+  issuer: string;
+  icon: IconType | typeof MicrosoftLogo;
+  code: string;
+  link: string;
+}[] = [
   {
-    period: "Actual",
-    institution: "Instituto Santo Domingo",
-    program: "Técnico/a Superior en Desarrollo Web y Aplicaciones Digitales",
-    bullets: [
-      "Título oficial de validez nacional.",
-      "Incluye la certificacion intermedia de Desarrollador de Sitios Web (no oficial).",
-      "Plan de estudios aprobado por el Expte. N° 0111-065420/2022, con respaldo institucional y reconocimiento academico.",
-    ],
-  },
-  {
-    period: "2022 - presente",
-    institution:
-      "Autoformación en Desarrollo de Software, Programación e Inteligencia Artificial",
-    program: "En Internet",
-    bullets: [
-      "Especializacion autodidacta en tecnologias web, programacion de software e integracion de modelos de inteligencia artificial.",
-      "Conocimientos en administracion de sistemas Linux y Windows, y manejo de maquinas virtuales.",
-      "Desarrollo de herramientas de codigo abierto y aplicaciones web.",
-    ],
-  },
-];
-
-const certifications = [
-  {
+    id: "claude-code-101",
     title: "Claude Code 101",
     issuer: "Anthropic",
     icon: SiAnthropic,
     code: "CLAUDE-CODE-101",
-    description:
-      "Certificado de finalizacion del curso introductorio de Anthropic sobre Claude Code. Cubre el flujo de trabajo agentic, comandos basicos y buenas practicas para programar con Claude Code.",
-    tags: ["Claude Code", "Agentic Coding", "CLI", "Anthropic"],
     link: "/certificates/claude-code-101.pdf",
   },
   {
+    id: "claude-code-in-action",
     title: "Claude Code in Action",
     issuer: "Anthropic",
     icon: SiAnthropic,
     code: "CLAUDE-CODE-ACTION",
-    description:
-      "Certificado de finalizacion del curso practico de Anthropic sobre Claude Code. Aplica Claude Code en proyectos reales: refactors, debugging y automatizacion de tareas de desarrollo.",
-    tags: ["Claude Code", "Automatizacion", "Debugging", "Anthropic"],
     link: "/certificates/claude-code-in-action.pdf",
   },
   {
+    id: "ai-skills-fest-2026",
     title: "AI Skills Fest 2026",
     issuer: "Microsoft",
     icon: MicrosoftLogo,
     code: "AI-SKILLS-FEST-2026",
-    description:
-      "Los participantes demuestran conocimientos fundamentales y aplicados de IA, incluyendo como usar herramientas de IA para mejorar la productividad, crear contenido y resolver problemas del mundo real. Identifican casos de uso practicos, aplican la IA de forma responsable y siguen desarrollando habilidades a traves de rutas de aprendizaje guiadas.",
-    tags: ["IA", "Productividad", "IA Responsable", "Aprendizaje Guiado"],
     link: "https://www.credly.com/badges/269375e9-525b-47d0-8f69-f0e2d66ff87a/linked_in_profile",
   },
 ];
 
 type ContributionDay = { date: string; count: number; level: number };
 
+// escala de GitHub en su versión oscura: el nivel 0 es un hueco tenue y
+// los verdes van de oscuro a brillante (al revés que en fondo claro)
 const CONTRIB_LEVELS = [
-  "rgba(0,0,0,0.05)",
-  "#9be9a8",
-  "#40c463",
-  "#30a14e",
-  "#216e39",
-];
-
-const MONTH_LABELS = [
-  "Ene",
-  "Feb",
-  "Mar",
-  "Abr",
-  "May",
-  "Jun",
-  "Jul",
-  "Ago",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dic",
+  "rgba(255,255,255,0.06)",
+  "#0e4429",
+  "#006d32",
+  "#26a641",
+  "#39d353",
 ];
 
 function GithubContributions() {
+  const { t } = useLang();
   const [days, setDays] = useState<ContributionDay[] | null>(null);
   const [total, setTotal] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -1145,18 +1308,18 @@ function GithubContributions() {
     const prevDay = prevWeek.find((day) => day !== null);
     if (!prevDay) return null;
     const prevMonth = new Date(`${prevDay.date}T00:00:00`).getMonth();
-    return month !== prevMonth ? MONTH_LABELS[month] : null;
+    return month !== prevMonth ? t.months[month] : null;
   });
 
   return (
     <div id="contribuciones" className="flex w-full scroll-mt-24 flex-col gap-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-mono text-sm tracking-widest text-black/50 uppercase">
-          Contribuciones
+          {t.sections.contribuciones}
         </h2>
         {days && (
           <span className="font-mono text-xs text-black/50">
-            {total} en el último año
+            {t.contributions.total(total)}
           </span>
         )}
       </div>
@@ -1183,7 +1346,7 @@ function GithubContributions() {
                         key={di}
                         title={
                           day
-                            ? `${day.count} contribuciones el ${day.date}`
+                            ? t.contributions.day(day.count, day.date)
                             : undefined
                         }
                         className="aspect-square w-full rounded-[2px]"
@@ -1200,9 +1363,11 @@ function GithubContributions() {
             </div>
             <a
               href="https://github.com/fabriciovla"
+              target="_blank"
+              rel="noreferrer"
               className="mt-2 self-start text-sm text-black/60 hover:text-black"
             >
-              Ver perfil en GitHub ↗
+              {t.contributions.profile}
             </a>
           </div>
         ) : (
@@ -1215,12 +1380,13 @@ function GithubContributions() {
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
-const chatSuggestions = [
-  { icon: HiOutlineChatBubbleOvalLeft, text: "¿Quién es Fabricio?" },
-  { icon: HiOutlineFolder, text: "¿Cuáles son sus proyectos?" },
-  { icon: HiOutlineCodeBracket, text: "¿Qué stack usa?" },
-  { icon: HiOutlineAcademicCap, text: "Contame sobre sus estudios" },
-  { icon: HiOutlineEnvelope, text: "¿Cómo lo contacto?" },
+// el texto de cada sugerencia sale del diccionario, en el mismo orden
+const chatSuggestionIcons = [
+  HiOutlineChatBubbleOvalLeft,
+  HiOutlineFolder,
+  HiOutlineCodeBracket,
+  HiOutlineAcademicCap,
+  HiOutlineEnvelope,
 ];
 
 function AssistantScreen({
@@ -1245,6 +1411,7 @@ function AssistantScreen({
   // veredicto del server para el envío en curso: null mientras se espera
   outcome: "ok" | "blocked" | null;
 }) {
+  const { t } = useLang();
   const scrollRef = useRef<HTMLDivElement>(null);
   // transición de escena: al primer mensaje, una burbuja del logo crece
   // hasta tapar la pantalla; bajo esa cobertura se cambia bienvenida -> chat
@@ -1401,11 +1568,11 @@ function AssistantScreen({
         className="mx-auto flex w-full max-w-3xl items-center justify-between px-10 pt-10"
       >
         <h2 className="font-mono text-sm tracking-widest text-black/50 uppercase">
-          Asistente
+          {t.assistant.heading}
         </h2>
         <button
           onClick={() => requestClose.current()}
-          aria-label="Cerrar asistente"
+          aria-label={t.assistant.close}
           className="flex h-9 w-9 items-center justify-center rounded-full border border-black/10 text-black/60 transition-colors hover:bg-black/5 hover:text-black"
         >
           <HiOutlineXMark className="h-5 w-5" />
@@ -1427,16 +1594,16 @@ function AssistantScreen({
               <OneChaterLogo className="h-14 w-14 text-black" />
             </div>
             <h1 className="font-title text-3xl font-semibold">
-              ¡Hola! ¿Qué tal?
+              {t.assistant.greeting}
             </h1>
-            <p className="text-base text-black/50">
-              Preguntame lo que quieras sobre Fabricio.
-            </p>
+            <p className="text-base text-black/50">{t.assistant.subtitle}</p>
           </motion.div>
           <div className="flex max-w-md flex-wrap justify-center gap-2">
-            {chatSuggestions.map((suggestion, i) => (
+            {t.assistant.suggestions.map((text, i) => {
+              const Icon = chatSuggestionIcons[i];
+              return (
               <motion.button
-                key={suggestion.text}
+                key={text}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{
@@ -1445,14 +1612,15 @@ function AssistantScreen({
                   ease: "easeOut",
                 }}
                 onClick={() => {
-                  if (!busy && !notice) onSend(suggestion.text);
+                  if (!busy && !notice) onSend(text);
                 }}
                 className="flex items-center gap-2 rounded-full border border-black/10 px-4 py-2 font-mono text-xs text-black/60 transition-colors hover:bg-black/5 hover:text-black"
               >
-                <suggestion.icon className="h-4 w-4" />
-                {suggestion.text}
+                <Icon className="h-4 w-4" />
+                {text}
               </motion.button>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : (
@@ -1635,10 +1803,10 @@ function AssistantScreen({
                 transition={{ duration: 0.4, delay: 0.25, ease: "easeOut" }}
               >
                 <p className="text-xl italic leading-7">
-                  Las IAs están saturadas…
+                  {t.assistant.saturated}
                 </p>
                 <p className="mt-2 text-sm italic opacity-70">
-                  probá de nuevo en un rato 😴
+                  {t.assistant.saturatedHint}
                 </p>
               </motion.div>
             )}
@@ -1660,6 +1828,7 @@ function AssistantDock({
   // (descansando o cupo agotado): reemplaza el placeholder y apaga el input
   notice: string | null;
 }) {
+  const { t } = useLang();
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -1687,7 +1856,7 @@ function AssistantDock({
         ref={inputRef}
         value={input}
         onChange={(event) => setInput(event.target.value)}
-        placeholder={notice ?? "Escribí tu pregunta..."}
+        placeholder={notice ?? t.assistant.placeholder}
         maxLength={2000}
         disabled={!!notice}
         className="min-w-0 flex-1 bg-transparent px-4 py-2 text-base outline-none placeholder:text-black/40 disabled:cursor-not-allowed"
@@ -1695,7 +1864,7 @@ function AssistantDock({
       <button
         type="submit"
         disabled={busy || !!notice || !input.trim()}
-        aria-label="Enviar"
+        aria-label={t.assistant.send}
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-white transition-opacity disabled:opacity-30"
       >
         <HiOutlinePaperAirplane className="h-4 w-4" />
@@ -1704,57 +1873,330 @@ function AssistantDock({
   );
 }
 
-// la navbar misma se convierte en este aviso: comparte layoutId "dock" (el
-// vidrio se estira de una forma a la otra) y "onechater-mark" con el icono
-// de Asistente, que viaja hasta acá girando sobre sí mismo
-function DockNotice({ onClose }: { onClose: () => void }) {
+// duración compartida por el morph del vidrio y el vuelo del logo: si no
+// coinciden, el logo llega antes o después que el pill y se nota
+const NOTICE_MORPH = { duration: 0.85, ease: [0.16, 1, 0.3, 1] } as const;
+const NOTICE_FLIGHT_MS = NOTICE_MORPH.duration * 1000;
+// cuánto se queda grande la navbar al volver, antes de compactarse
+// fila de secciones que se revela detrás del logo mientras borra el mensaje.
+// Mismo ancho intrínseco y mismo gap que la navbar grande y, como las dos van
+// centradas, cada sección cae en el mismo punto de pantalla que tendrá
+// después: al cambiar de componente no se mueve nada, solo se contrae el
+// vidrio alrededor. El hueco de Asistente va vacío porque ahí aterriza el logo
+function NavItemsGhost({
+  active,
+  markRef,
+}: {
+  active: TabId;
+  markRef: React.Ref<HTMLSpanElement>;
+}) {
+  const { t } = useLang();
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1"
+    >
+      {navItems.map((item) => {
+        const isActive = item.id === active;
+        return (
+          <span
+            key={item.id}
+            className="flex flex-col items-center gap-0.5 rounded-full px-4 py-2 text-xs"
+            // mismo pill que marca la sección activa en la navbar
+            style={
+              isActive
+                ? {
+                    background:
+                      "linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.09))",
+                    boxShadow:
+                      "0 4px 12px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.28), inset 0 -1px 1px rgba(0,0,0,0.25)",
+                  }
+                : undefined
+            }
+          >
+            {item.id === "asistente" ? (
+              <span ref={markRef} className="block h-5 w-5" />
+            ) : (
+              <item.icon className="h-5 w-5" />
+            )}
+            <span
+              className={isActive ? "font-medium text-black" : "text-black/60"}
+            >
+              {t.nav[item.id]}
+            </span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+// delta, en coordenadas locales del elemento, para que aparezca justo encima
+// de un rect de pantalla. Hace falta porque el dock está escalado y el pill
+// además se está deformando: un desplazamiento en px de pantalla se
+// renderizaría multiplicado por esa escala
+function localOffsetTo(el: HTMLElement, target: DOMRect) {
+  const now = el.getBoundingClientRect();
+  const scale = now.width / el.offsetWidth || 1;
+  return {
+    x: (target.left + target.width / 2 - (now.left + now.width / 2)) / scale,
+    y: (target.top + target.height / 2 - (now.top + now.height / 2)) / scale,
+    scale: target.width / el.offsetWidth / scale,
+  };
+}
+
+// la navbar misma se convierte en este aviso (layoutId "dock"). El logo vive
+// adentro del pill (no en un portal): así hereda la escala del dock y viaja
+// con la deformación, en vez de quedar corrido y de otro tamaño
+function DockNotice({
+  from,
+  size,
+  endSize,
+  active,
+  leaving,
+  onClose,
+}: {
+  // rect del icono en la navbar, medido antes del swap: para cuando este
+  // aviso monta la navbar ya no existe y no hay nada que medir
+  from: DOMRect | null;
+  // caja de la navbar en su estado grande, para copiarla tal cual
+  size: { w: number; h: number } | null;
+  // caja de la navbar compacta: a esto se contrae mientras el logo barre,
+  // para terminar exactamente en la forma final
+  endSize: { w: number; h: number } | null;
+  active: TabId;
+  leaving: boolean;
+  onClose: () => void;
+}) {
+  const { t } = useLang();
+  const slotRef = useRef<HTMLSpanElement>(null);
+  const markRef = useRef<HTMLSpanElement>(null);
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const ghostRef = useRef<HTMLSpanElement>(null);
+
+  // entrada: el logo aparece sobre el icono de la navbar y cae en su hueco
+  // del aviso, girando
+  useLayoutEffect(() => {
+    const el = markRef.current;
+    if (!from || !el) return;
+    const d = localOffsetTo(el, from);
+    const anim = el.animate(
+      [
+        {
+          transform: `translate(${d.x}px, ${d.y}px) scale(${d.scale}) rotate(-360deg)`,
+        },
+        { transform: "translate(0px, 0px) scale(1) rotate(0deg)" },
+      ],
+      {
+        duration: NOTICE_FLIGHT_MS,
+        easing: "cubic-bezier(0.16,1,0.3,1)",
+        fill: "backwards",
+      },
+    );
+    return () => anim.cancel();
+  }, [from]);
+
+  // vuelta: el logo cruza de punta a punta y a su paso borra el mensaje y
+  // destapa las secciones. Los recortes van con offsets atados a la posición
+  // del logo, no a un avance parejo, si no se le adelantan
+  useLayoutEffect(() => {
+    const text = textRef.current;
+    const slotEl = slotRef.current;
+    const ghost = ghostRef.current;
+    const mark = markRef.current;
+    if (!leaving || !text || !slotEl || !ghost || !mark) return;
+
+    const slot = slotEl.getBoundingClientRect();
+    const target = ghost.getBoundingClientRect();
+
+    const startCx = slot.left + slot.width / 2;
+    const endCx = target.left + target.width / 2;
+    const span = endCx - startCx;
+    const at = (x: number) =>
+      Math.min(1, Math.max(0, span === 0 ? 1 : (x - startCx) / span));
+
+    const row = ghost.closest("[data-nav-ghost]") as HTMLElement | null;
+    const textBox = text.getBoundingClientRect();
+    const opts = {
+      duration: NOTICE_FLIGHT_MS,
+      easing: "cubic-bezier(0.16,1,0.3,1)",
+      fill: "forwards" as const,
+    };
+
+    // el mensaje se recorta desde la izquierda a medida que el logo lo cruza
+    const wipeOut = text.animate(
+      [
+        { clipPath: "inset(0 0 0 0)", offset: 0 },
+        { clipPath: "inset(0 0 0 0)", offset: at(textBox.left) },
+        {
+          clipPath: "inset(0 0 0 101%)",
+          offset: Math.max(at(textBox.left) + 0.01, at(textBox.right)),
+        },
+        { clipPath: "inset(0 0 0 101%)", offset: 1 },
+      ],
+      opts,
+    );
+    // y las secciones se destapan justo detrás de ese mismo borde
+    const rowBox = row?.getBoundingClientRect();
+    const wipeIn = row?.animate(
+      [
+        { clipPath: "inset(0 101% 0 0)", offset: 0 },
+        {
+          clipPath: "inset(0 101% 0 0)",
+          offset: rowBox ? at(rowBox.left) : 0,
+        },
+        { clipPath: "inset(0 0 0 0)", offset: rowBox ? at(rowBox.right) : 1 },
+        { clipPath: "inset(0 0 0 0)", offset: 1 },
+      ],
+      opts,
+    );
+
+    // y el logo cruza justo sobre ese borde, hasta el hueco de Asistente
+    const d = localOffsetTo(mark, target);
+    const trip = mark.animate(
+      [
+        { transform: "translate(0px, 0px) scale(1) rotate(0deg)" },
+        {
+          transform: `translate(${d.x}px, ${d.y}px) scale(${d.scale}) rotate(360deg)`,
+        },
+      ],
+      opts,
+    );
+
+    return () => {
+      wipeOut.cancel();
+      wipeIn?.cancel();
+      trip.cancel();
+    };
+  }, [leaving]);
+
+  const contentIn = {
+    opacity: leaving ? 0 : 1,
+    transition: { duration: leaving ? 0.18 : 0.3, delay: leaving ? 0 : 0.34 },
+  };
+
   return (
     <motion.div
       layoutId="dock"
-      style={dockGlassStyle}
-      className="pointer-events-auto flex max-w-[min(92vw,31rem)] items-center gap-3 rounded-full py-3 pr-2 pl-4 will-change-transform"
+      transition={{ layout: NOTICE_MORPH }}
+      // sin will-change: el dock está escalado 1.16 y, si se promueve a capa,
+      // el navegador rasteriza el texto a 1x y después lo agranda -> borroso
+      className="pointer-events-auto relative overflow-hidden rounded-full"
+      // arranca con la caja de la navbar grande y, durante el barrido, se
+      // contrae hasta la compacta: al terminar ya es la forma final
+      style={{
+        ...dockGlassStyle,
+        // el aviso sale sin sombra: solo el vidrio
+        boxShadow: "none",
+        width: (leaving ? endSize?.w : size?.w) ?? size?.w,
+        height: (leaving ? endSize?.h : size?.h) ?? size?.h,
+        transition: `width ${NOTICE_FLIGHT_MS}ms cubic-bezier(0.16,1,0.3,1), height ${NOTICE_FLIGHT_MS}ms cubic-bezier(0.16,1,0.3,1)`,
+      }}
       role="status"
     >
-      {/* el layoutId va afuera y el giro adentro: framer no puede proyectar
-          un layout y rotar el mismo nodo a la vez */}
-      <motion.span layoutId="onechater-mark" className="block h-7 w-7 shrink-0">
-        <motion.span
-          className="block h-full w-full"
-          initial={{ rotate: -270 }}
-          animate={{ rotate: 0 }}
-          transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <OneChaterLogo className="h-full w-full text-black" />
-        </motion.span>
-      </motion.span>
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.35, delay: 0.3 }}
-        className="min-w-0 flex-1 text-sm leading-snug text-black/70"
+      {/* secciones que se destapan detrás del logo */}
+      {leaving && (
+        <div data-nav-ghost className="absolute inset-0">
+          <NavItemsGhost active={active} markRef={ghostRef} />
+        </div>
+      )}
+      {/* mensaje: ancho fijo del tamaño grande para que no se reacomode
+          mientras el pill se contrae (el recorte ya lo va tapando). Va
+          centrado y no pegado al borde izquierdo: ese borde se corre hacia
+          adentro al angostarse el vidrio y arrastraría al logo de más */}
+      <div
+        className="absolute inset-y-0 left-1/2 flex -translate-x-1/2 items-center gap-4 pr-3 pl-6"
+        style={{ width: size?.w }}
       >
-        El asistente de este sitio está hecho con{" "}
-        <a
-          href="https://onechater.com"
-          target="_blank"
-          rel="noreferrer"
-          className="font-medium text-black underline decoration-black/20 underline-offset-2 hover:decoration-black"
+        <span
+          ref={slotRef}
+          data-notice-mark
+          className="relative z-10 block h-9 w-9 shrink-0"
+          aria-hidden
         >
-          OneChater
-        </a>
-        , mi plataforma de chat unificada.
-      </motion.p>
-      <motion.button
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.35, delay: 0.3 }}
-        onClick={onClose}
-        aria-label="Cerrar aviso"
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-black/40 transition-colors hover:bg-black/5 hover:text-black"
-      >
-        <HiOutlineXMark className="h-4 w-4" />
-      </motion.button>
+          <span ref={markRef} className="block h-9 w-9 will-change-transform">
+            <OneChaterLogo className="h-full w-full text-black" />
+          </span>
+        </span>
+        <motion.p
+          ref={textRef}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1, transition: { duration: 0.3, delay: 0.34 } }}
+          className="min-w-0 flex-1 text-base leading-6 text-black/70"
+        >
+          {t.notice.before}
+          <a
+            href="https://onechater.com"
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-black underline decoration-black/20 underline-offset-2 hover:decoration-black"
+          >
+            OneChater
+          </a>
+          {t.notice.after}
+        </motion.p>
+        <motion.button
+          initial={{ opacity: 0 }}
+          animate={contentIn}
+          onClick={onClose}
+          aria-label={t.notice.close}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-black/40 transition-colors hover:bg-black/5 hover:text-black"
+        >
+          <HiOutlineXMark className="h-5 w-5" />
+        </motion.button>
+      </div>
     </motion.div>
+  );
+}
+
+// logo que viaja de un rect a otro girando, dibujado sobre el body para que
+// la deformación del dock no le toque el recorrido
+function FlyingMark({
+  from,
+  to,
+  spin,
+  onDone,
+}: {
+  from: DOMRect;
+  to: DOMRect;
+  spin: number;
+  onDone?: () => void;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const anim = el.animate(
+      [
+        {
+          transform: `translate(${from.left - to.left}px, ${
+            from.top - to.top
+          }px) scale(${from.width / to.width}) rotate(${-spin}deg)`,
+        },
+        { transform: "translate(0px, 0px) scale(1) rotate(0deg)" },
+      ],
+      {
+        duration: NOTICE_MORPH.duration * 1000,
+        easing: "cubic-bezier(0.16,1,0.3,1)",
+        fill: "backwards",
+      },
+    );
+    if (onDone) anim.addEventListener("finish", onDone);
+    return () => anim.cancel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [from, to, spin]);
+
+  return createPortal(
+    <span
+      ref={ref}
+      className="pointer-events-none fixed z-[61] block"
+      style={{ left: to.left, top: to.top, width: to.width, height: to.height }}
+      aria-hidden
+    >
+      <OneChaterLogo className="h-full w-full text-black" />
+    </span>,
+    document.body,
   );
 }
 
@@ -1773,24 +2215,29 @@ const enterItem = {
   },
 };
 
-const aboutHighlights = [
-  {
-    title: "Como trabajo",
-    text: "Uso la IA como copiloto, no como reemplazo: entiendo lo que construyo de adentro hacia afuera antes de confiar en el resultado.",
-  },
-  {
-    title: "Lo que me interesa",
-    text: "Desarrollo full stack, sistemas de IA aplicados a productos reales, y entender como funcionan las herramientas que uso todos los dias.",
-  },
-  {
-    title: "Formacion",
-    text: "Técnico/a Superior en Desarrollo Web y Aplicaciones Digitales (en curso) en Instituto Santo Domingo, mas aprendizaje autodidacta en Linux, Windows y maquinas virtuales.",
-  },
-];
-
 export default function Home() {
+  // idioma: el script del layout ya lo dejó puesto en el <html> antes de
+  // pintar, así que acá se lee de ahí (leer localStorage en el render
+  // rompería la hidratación)
+  const [lang, setLangState] = useState<Lang>("es");
+  const t = copy[lang];
+
+  useEffect(() => {
+    if (document.documentElement.lang === "en") setLangState("en");
+  }, []);
+
+  const setLang = (next: Lang) => {
+    setLangState(next);
+    document.documentElement.lang = next;
+    try {
+      localStorage.setItem("lang", next);
+    } catch {
+      // modo incógnito o storage bloqueado: el idioma dura la sesión
+    }
+  };
+
   const [projects, setProjects] = useState(initialProjects);
-  const [activeTab, setActiveTab] = useState("Inicio");
+  const [activeTab, setActiveTab] = useState<TabId>("inicio");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatBusy, setChatBusy] = useState(false);
   // "resting": las APIs gratuitas están saturadas; "limit": este visitante
@@ -1800,7 +2247,7 @@ export default function Home() {
   const [assistantState, setAssistantState] = useState<
     "ok" | "resting" | "limit"
   >("ok");
-  const prevTab = useRef("Inicio");
+  const prevTab = useRef<TabId>("inicio");
   const flightRef = useRef<{ index: number; rect: DOMRect } | null>(null);
   // la página termina de cargar (fuentes e imágenes incluidas) y recién ahí
   // sube la navbar desde abajo del viewport
@@ -1812,6 +2259,57 @@ export default function Home() {
   // (o si ya entraron al asistente) no vuelve en toda la visita
   const [noticeSeen, setNoticeSeen] = useState(false);
   const [showNotice, setShowNotice] = useState(false);
+  // fase de salida: el texto se apaga antes de que el pill vuelva a ser
+  // navbar, así el cierre no corta de golpe
+  const [noticeLeaving, setNoticeLeaving] = useState(false);
+  const noticeFrom = useRef<DOMRect | null>(null);
+  // dock en su estado "grande y con las secciones separadas": arranca así en
+  // la carga y se repite al volver del aviso
+  const [dockBig, setDockBig] = useState(true);
+  // el botón de tono no está en la carga: aparece desprendiéndose del dock
+  // recién cuando este ya terminó de entrar y compactarse
+  const [toggleStage, setToggleStage] = useState<
+    "hidden" | "detaching" | "done"
+  >("hidden");
+  const navBigSize = useRef<{ w: number; h: number } | null>(null);
+  const navSmallSize = useRef<{ w: number; h: number } | null>(null);
+
+  // Los botones se cuelgan del borde real del dock, medido cuadro a cuadro:
+  // derivarlo del estado (navbar/aviso, compacto/grande) siempre terminaba
+  // desincronizado, porque el dock cambia de ancho con transiciones propias
+  // y la medición llegaba antes o tarde. Así siguen lo que de verdad hay.
+  const dockHalf = useMotionValue(171);
+  const toggleX = useTransform(dockHalf, (h) => -(h + 12 + 56));
+  const langX = useTransform(dockHalf, (h) => h + 12);
+
+  useEffect(() => {
+    if (toggleStage !== "done") return;
+    let raf = 0;
+    const tick = () => {
+      const el =
+        document.querySelector("[role=status]") ?? document.querySelector("nav");
+      if (el) dockHalf.set(el.getBoundingClientRect().width / 2);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [toggleStage, dockHalf]);
+
+  // el barrido (logo borrando el mensaje y destapando las secciones) lo hace
+  // el propio aviso; acá solo se espera a que termine para devolver la navbar
+  // ya grande, y recién después compactarla
+  function dismissNotice() {
+    setNoticeLeaving(true);
+    setTimeout(() => {
+      // la navbar entra con la misma caja grande que tenía el aviso (cero
+      // salto) y en el frame siguiente arranca a compactarse a su tamaño
+      // normal, sin quedarse grande en el medio
+      // el aviso ya se contrajo a la caja compacta durante el barrido, así
+      // que la navbar entra en su forma final y no hay nada que reacomodar
+      setShowNotice(false);
+      setNoticeSeen(true);
+    }, NOTICE_FLIGHT_MS);
+  }
   // pelota volviendo del chat cerrado al icono de la navbar; mientras
   // exista, el icono de Asistente muestra solo dos pelotas
   const [ballFlight, setBallFlight] = useState<{
@@ -1825,28 +2323,143 @@ export default function Home() {
     null,
   );
 
+  // cambio de tono: la pelota de abajo del logo se va del dock, tapa la
+  // pantalla mientras el tema cambia debajo, y después renace en el icono
+  // fases: viaja al centro, se queda un rato mientras el tono cambia en vivo,
+  // se va, y después de unos segundos de nada arranca el renacimiento
+  // mientras la pelota está afuera, el icono del dock muestra solo dos
+  const [themeBallAway, setThemeBallAway] = useState(false);
+  // tono actual: el script del layout ya lo dejó puesto antes de pintar
+  const [light, setLight] = useState(false);
+
+  useEffect(() => {
+    setLight(document.documentElement.dataset.theme === "light");
+  }, []);
+  // contador que dispara el renacimiento: sube cuando la pelota vuelve al DOM
+  const [ballReborn, setBallReborn] = useState(0);
+
+  function applyTheme(next: boolean) {
+    const root = document.documentElement;
+    if (next) root.dataset.theme = "light";
+    else delete root.dataset.theme;
+    setLight(next);
+    try {
+      localStorage.setItem("theme", next ? "light" : "dark");
+    } catch {
+      // modo incógnito o storage bloqueado: el tono dura la sesión
+    }
+  }
+
+  // el tono nuevo se destapa por una ventana circular que nace del tamaño y en
+  // el lugar exacto de la pelota de abajo del logo: desde el primer frame lo
+  // que se ve adentro de la pelota ya es la página en el tono nuevo. La ventana
+  // viaja al centro, se presenta y se extiende a toda la pantalla (el recorrido
+  // y los tiempos están en el @keyframes theme-reveal del CSS)
+  function switchTheme() {
+    const next = !light;
+    const doc = document as Document & {
+      startViewTransition?: (cb: () => void) => { finished: Promise<void> };
+    };
+    const root = document.documentElement;
+    const icon = document.querySelector<HTMLElement>("[data-assistant-icon]");
+    const rect = icon?.getBoundingClientRect();
+    // sin el icono a la vista (asistente abierto, aviso en el dock), sin
+    // soporte, o con una pelota ya en el aire: el tono cambia de una
+    if (
+      !rect ||
+      !rect.width ||
+      !doc.startViewTransition ||
+      themeBallAway ||
+      ballFlight
+    ) {
+      applyTheme(next);
+      return;
+    }
+
+    // mismo mapeo del viewBox "14 18 74 72": la pelota de abajo está en
+    // (50, 70) y mide 34 unidades
+    const s = Math.min(rect.width / 74, rect.height / 72);
+    const d = 34 * s;
+    const cx = rect.left + rect.width / 2 + (50 - 51) * s;
+    const cy = rect.top + rect.height / 2 + (70 - 54) * s;
+    // mask-position ubica la esquina de la imagen, no su centro
+    root.style.setProperty("--ball-x", `${cx - d / 2}px`);
+    root.style.setProperty("--ball-y", `${cy - d / 2}px`);
+    root.style.setProperty("--ball-d", `${d}px`);
+    root.style.setProperty(
+      "--ball-big",
+      `${Math.min(window.innerWidth, window.innerHeight) * 0.42}px`,
+    );
+
+    // la pelota se va del icono ANTES de la foto del estado viejo: en las dos
+    // fotos el dock tiene dos, y la tercera recién vuelve con el renacimiento
+    flushSync(() => setThemeBallAway(true));
+    // ninguna transición CSS corriendo mientras se saca la foto del estado
+    // nuevo, o quedaría congelada a mitad de camino por todo el reveal
+    root.dataset.morphing = "1";
+    const transition = doc.startViewTransition(() => {
+      flushSync(() => applyTheme(next));
+    });
+    // then(done, done): si la transición se saltea (otra la interrumpe, la
+    // pestaña se esconde) el cierre tiene que correr igual
+    const done = () => {
+      delete root.dataset.morphing;
+      // unos segundos de nada y ahí sí giran las dos que quedaron
+      setTimeout(() => {
+        setThemeBallAway(false);
+        setBallReborn((n) => n + 1);
+      }, 1800);
+    };
+    transition.finished.then(done, done);
+  }
+
+  // renacimiento: las dos pelotas que quedaron giran y de ese giro sale la
+  // tercera. useLayoutEffect y no useEffect para que la pelota nunca llegue a
+  // pintarse a tamaño completo antes de arrancar su animación
+  useLayoutEffect(() => {
+    if (!ballReborn) return;
+    const icon = document.querySelector<HTMLElement>("[data-assistant-icon]");
+    if (!icon) return;
+    // composite "add": el giro se suma al morph/drag del dock sin pisarlos
+    icon.animate(
+      [{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }],
+      {
+        duration: 750,
+        easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+        composite: "add",
+      },
+    );
+    icon.querySelector<SVGPathElement>("[data-logo-bottom]")?.animate(
+      [
+        { transform: "scale(0)", offset: 0 },
+        { transform: "scale(0)", offset: 0.3 },
+        { transform: "scale(1.35)", offset: 0.7 },
+        { transform: "scale(1)", offset: 1 },
+      ],
+      { duration: 750, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    );
+  }, [ballReborn]);
+
   // puntitos del scroll: cada sección con sus sub-puntos debajo. Los
   // proyectos se pueden reordenar arrastrando, así que la lista se arma
   // desde el estado para que el rail siga el orden que se ve en pantalla
   const scrollSections = useMemo<Section[] | null>(() => {
-    if (activeTab === "Inicio") {
+    if (activeTab === "inicio") {
       return [
-        { id: "top", label: "Inicio", depth: 0 },
-        { id: "proyectos", label: "Proyectos", depth: 0 },
+        { id: "top", label: t.nav.inicio, depth: 0 },
+        { id: "proyectos", label: t.sections.proyectos, depth: 0 },
         ...projects.map((p) => ({
           id: `proyecto-${slug(p.title)}`,
           label: p.title,
           depth: 1,
         })),
-        { id: "educacion", label: "Educación", depth: 0 },
-        ...education.map((e) => ({
-          id: `edu-${slug(e.institution)}`,
-          label: e.institution.startsWith("Autoformación")
-            ? "Autoformación"
-            : e.institution,
+        { id: "educacion", label: t.sections.educacion, depth: 0 },
+        ...t.education.map((e) => ({
+          id: `edu-${e.id}`,
+          label: e.short,
           depth: 1,
         })),
-        { id: "certificados", label: "Certificados", depth: 0 },
+        { id: "certificados", label: t.sections.certificados, depth: 0 },
         ...certifications.map((c) => ({
           id: `cert-${slug(c.title)}`,
           label: c.title,
@@ -1854,26 +2467,26 @@ export default function Home() {
         })),
       ];
     }
-    if (activeTab === "Sobre Mí") {
+    if (activeTab === "sobre") {
       return [
-        { id: "top", label: "Inicio", depth: 0 },
-        { id: "sobre-mi", label: "Sobre Mí", depth: 0 },
-        ...aboutHighlights.map((h) => ({
-          id: `sobre-${slug(h.title)}`,
+        { id: "top", label: t.nav.inicio, depth: 0 },
+        { id: "sobre-mi", label: t.sections.sobreMi, depth: 0 },
+        ...t.about.highlights.map((h) => ({
+          id: `sobre-${h.id}`,
           label: h.title,
           depth: 1,
         })),
-        { id: "contribuciones", label: "Contribuciones", depth: 0 },
+        { id: "contribuciones", label: t.sections.contribuciones, depth: 0 },
       ];
     }
     return null;
-  }, [activeTab, projects]);
+  }, [activeTab, projects, t]);
 
   const chatNotice =
     assistantState === "resting"
-      ? "El asistente está descansando 😴"
+      ? t.assistant.resting
       : assistantState === "limit"
-        ? "Llegaste al límite de preguntas por hoy 🙂"
+        ? t.assistant.limit
         : null;
 
   useEffect(() => {
@@ -1886,27 +2499,76 @@ export default function Home() {
     return () => window.removeEventListener("load", onLoad);
   }, []);
 
+  // entrada: el dock se sostiene grande 1.5s y ahí se compacta (mismo tiempo
+  // que tenía antes como delay de la transición). De paso se anota cuánto
+  // mide la navbar en ese estado grande: el aviso va a copiar esa geometría
+  // exacta, y así los iconos que se destapan en el barrido caen justo donde
+  // van a estar después
+  useEffect(() => {
+    if (!loaded) return;
+    const nav = document.querySelector("nav");
+    // en pantalla, no de layout: la navbar de la entrada se ve grande por el
+    // scale del contenedor, y ese es el tamaño que tiene que copiar el aviso.
+    // Al aplicarlo como medidas reales (sin transform) el texto sale nítido
+    const r = nav?.getBoundingClientRect();
+    if (r) navBigSize.current = { w: Math.round(r.width), h: Math.round(r.height) };
+    const t = setTimeout(() => setDockBig(false), 1500);
+    // 1.5s de hold + 0.9s de compactado: la gota se despega con el dock ya
+    // quieto en su forma final
+    const d = setTimeout(() => {
+      const r = document.querySelector("nav")?.getBoundingClientRect();
+      if (r)
+        navSmallSize.current = {
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+        };
+      setToggleStage("done");
+    }, 2600);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(d);
+    };
+  }, [loaded]);
+
   // 5s desde que la página quedó lista; vuelve a ser navbar 6s después
   // (mientras dura el aviso no hay navegación, así que no se estira más)
   useEffect(() => {
     if (!loaded || noticeSeen) return;
-    const show = setTimeout(() => setShowNotice(true), 5000);
-    const hide = setTimeout(() => {
-      setShowNotice(false);
-      setNoticeSeen(true);
-    }, 11000);
+    const show = setTimeout(() => {
+      // medir el icono con la navbar todavía en pantalla
+      noticeFrom.current =
+        document
+          .querySelector("[data-assistant-icon]")
+          ?.getBoundingClientRect() ?? null;
+      // caja de la navbar tal como está ahora (compacta): es a lo que se
+      // contrae el aviso mientras el logo barre, para terminar clavado en la
+      // forma final y que el cambio de componente no mueva nada
+      const r = document.querySelector("nav")?.getBoundingClientRect();
+      if (r)
+        navSmallSize.current = {
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+        };
+      // el aviso copia la caja de la navbar grande, pero sin la escala del
+      // contenedor: el texto se dibuja a tamaño real y sale nítido
+      setDockBig(false);
+      setShowNotice(true);
+    }, 10000);
+    const hide = setTimeout(dismissNotice, 15800);
     return () => {
       clearTimeout(show);
       clearTimeout(hide);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, noticeSeen]);
 
   // al entrar al asistente el aviso pierde sentido: ya está adentro
   useEffect(() => {
-    if (activeTab !== "Asistente") return;
+    if (activeTab !== "asistente") return;
     setShowNotice(false);
     setNoticeSeen(true);
   }, [activeTab]);
+
 
   async function sendChat(text: string, from?: DOMRect) {
     if (chatBusy || chatNotice) return;
@@ -1946,7 +2608,9 @@ export default function Home() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history.slice(-20) }),
+        // el idioma viaja con la pregunta: el asistente contesta en el
+        // idioma en el que se está viendo el sitio
+        body: JSON.stringify({ messages: history.slice(-20), lang }),
       });
       if (!res.ok || !res.body) throw new Error("sin respuesta");
       // el server avisa si el asistente entró en descanso o se acabó el cupo:
@@ -1987,17 +2651,14 @@ export default function Home() {
       clearInterval(timer);
       setChatMessages([
         ...history,
-        {
-          role: "assistant",
-          content: "Uy, me distraje un segundo 😅. Probá de nuevo en un ratito.",
-        },
+        { role: "assistant", content: t.assistant.oops },
       ]);
       setChatBusy(false);
     }
   }
 
   return (
-    <>
+    <LangContext.Provider value={{ lang, setLang, t }}>
       <div
         id="top"
         className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-start gap-16 px-10 pt-16 pb-32 text-left"
@@ -2012,24 +2673,23 @@ export default function Home() {
             <h1 className="font-title text-4xl font-semibold">
               Fabricio Varela
             </h1>
-            <p className="text-xl text-black/60">Web Developer, Full Stack</p>
+            <p className="text-xl text-black/60">{t.hero.role}</p>
           </motion.div>
           <motion.p
             variants={enterItem}
             className="max-w-2xl text-lg leading-7 [word-spacing:0.3em]"
           >
-            Me interesa entender como funcionan las cosas por dentro. Con
-            criterio propio, y usando IA como copiloto para la productividad,
-            construyo lo que se me cruce por la cabeza.
+            {t.hero.intro}
           </motion.p>
           <motion.div
             variants={enterItem}
             className="flex flex-wrap gap-2 font-mono text-sm"
           >
-            {links.map((link) => (
+            {linksFor(t).map((link) => (
               <a
                 key={link.label}
                 href={link.href}
+                {...externalLink(link.href)}
                 className="rounded-md border border-black/10 px-3 py-1.5 hover:bg-black/5"
               >
                 {link.label}
@@ -2045,11 +2705,11 @@ export default function Home() {
           animate="show"
           transition={{ delay: 0.24 }}
         >
-          {tabSwitched && activeTab !== "Asistente" && (
+          {tabSwitched && activeTab !== "asistente" && (
             <ParticleBurst key={activeTab} />
           )}
           <AnimatePresence mode="wait">
-            {activeTab === "Inicio" ? (
+            {activeTab === "inicio" ? (
               <motion.div
                 key="proyectos"
                 initial={{ opacity: 0, scale: 0.98 }}
@@ -2062,7 +2722,7 @@ export default function Home() {
                   id="proyectos"
                   className="scroll-mt-24 font-mono text-sm tracking-widest text-black/50 uppercase"
                 >
-                  Proyectos
+                  {t.sections.proyectos}
                 </h2>
                 <Reorder.Group
                   axis="y"
@@ -2072,12 +2732,12 @@ export default function Home() {
                 >
                   {projects.map((project) => (
                     <Reorder.Item
-                      key={project.title}
+                      key={project.id}
                       id={`proyecto-${slug(project.title)}`}
                       value={project}
                       whileDrag={{
                         scale: 1.02,
-                        boxShadow: "0 12px 30px rgba(0,0,0,0.15)",
+                        boxShadow: "0 12px 30px rgba(0,0,0,0.55)",
                       }}
                       className={`group relative flex scroll-mt-24 cursor-grab flex-col gap-4 rounded-3xl border bg-[var(--background)] p-6 active:cursor-grabbing ${
                         project.featured
@@ -2087,7 +2747,7 @@ export default function Home() {
                     >
                       {project.featured && (
                         <span className="absolute -top-3 right-6 rounded-full bg-black px-3 py-1 font-mono text-xs tracking-wide text-white uppercase">
-                          Más popular
+                          {t.project.featured}
                         </span>
                       )}
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2095,31 +2755,40 @@ export default function Home() {
                           {project.title}
                         </h3>
                         <div className="flex flex-wrap gap-4 text-sm text-black/60">
-                          <a href={project.site} className="hover:text-black">
-                            Sitio web
+                          <a
+                            href={project.site}
+                            {...externalLink(project.site)}
+                            className="hover:text-black"
+                          >
+                            {t.project.site}
                           </a>
-                          <a href={project.repo} className="hover:text-black">
-                            Repositorio
+                          <a
+                            href={project.repo}
+                            {...externalLink(project.repo)}
+                            className="hover:text-black"
+                          >
+                            {t.project.repo}
                           </a>
                           <a
                             href={project.details}
+                            {...externalLink(project.details)}
                             className="hover:text-black"
                           >
-                            Ver más detalles
+                            {t.project.details}
                           </a>
                         </div>
                       </div>
                       <div className="rounded-2xl border border-black/10 bg-black/[.02] p-4">
                         <p className="text-base leading-7 text-black/70">
-                          {project.description}
+                          {t.projects[project.id].description}
                         </p>
                       </div>
                       <div className="flex flex-col gap-2">
                         <h4 className="font-mono text-xs tracking-widest text-black/50 uppercase">
-                          Backend
+                          {t.project.backend}
                         </h4>
                         <p className="text-base leading-7 text-black/70">
-                          {project.backend}
+                          {t.projects[project.id].backend}
                         </p>
                       </div>
                       <div className="flex items-end justify-between gap-5 border-t border-black/[.07] pt-4">
@@ -2146,7 +2815,7 @@ export default function Home() {
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={project.logo}
-                          alt={`Logo de ${project.title}`}
+                          alt={t.project.logoAlt(project.title)}
                           className="hidden h-8 w-auto max-w-[120px] shrink-0 self-center object-contain opacity-60 grayscale transition duration-500 group-hover:opacity-100 group-hover:grayscale-0 sm:block"
                           loading="lazy"
                           decoding="async"
@@ -2161,14 +2830,14 @@ export default function Home() {
                   className="flex w-full scroll-mt-24 flex-col gap-6"
                 >
                   <h2 className="font-mono text-sm tracking-widest text-black/50 uppercase">
-                    Educación
+                    {t.sections.educacion}
                   </h2>
                   <div className="relative flex flex-col gap-10 pl-8">
                     <div className="absolute top-1.5 bottom-1.5 left-0 w-px bg-black/15" />
-                    {education.map((item) => (
+                    {t.education.map((item) => (
                       <div
-                        key={item.institution}
-                        id={`edu-${slug(item.institution)}`}
+                        key={item.id}
+                        id={`edu-${item.id}`}
                         className="relative flex scroll-mt-24 flex-col gap-3"
                       >
                         <span className="absolute top-1.5 -left-8 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-black" />
@@ -2201,12 +2870,12 @@ export default function Home() {
                   className="flex w-full scroll-mt-24 flex-col gap-6"
                 >
                   <h2 className="font-mono text-sm tracking-widest text-black/50 uppercase">
-                    Certificados
+                    {t.sections.certificados}
                   </h2>
                   <div className="flex flex-col gap-4">
                     {certifications.map((cert) => (
                       <div
-                        key={cert.title}
+                        key={cert.id}
                         id={`cert-${slug(cert.title)}`}
                         className="scroll-mt-24"
                       >
@@ -2228,10 +2897,10 @@ export default function Home() {
                         </div>
                         <div className="flex flex-col gap-3 rounded-2xl border border-black/10 bg-black/[.02] p-4">
                           <p className="text-base leading-7 text-black/70">
-                            {cert.description}
+                            {t.certifications[cert.id].description}
                           </p>
                           <div className="flex flex-wrap gap-2 font-mono text-xs text-black/60">
-                            {cert.tags.map((tag) => (
+                            {t.certifications[cert.id].tags.map((tag) => (
                               <span
                                 key={tag}
                                 className="rounded-md border border-black/10 px-2 py-1"
@@ -2242,9 +2911,10 @@ export default function Home() {
                           </div>
                           <a
                             href={cert.link}
+                            {...externalLink(cert.link)}
                             className="text-sm text-black/60 hover:text-black"
                           >
-                            Ver credencial ↗
+                            {t.cert.view}
                           </a>
                         </div>
                       </HoloCard>
@@ -2266,22 +2936,16 @@ export default function Home() {
                   id="sobre-mi"
                   className="scroll-mt-24 font-mono text-sm tracking-widest text-black/50 uppercase"
                 >
-                  Sobre Mí
+                  {t.sections.sobreMi}
                 </h2>
                 <p className="max-w-2xl text-lg leading-8 text-black/70">
-                  Soy web developer con experiencia en desarrollo full stack
-                  y una fuerte orientación hacia la integración de
-                  inteligencia artificial en flujos de trabajo y aplicaciones,
-                  para mejorar la productividad y los productos. Me apasiona
-                  entender cómo funcionan las cosas desde adentro, aplicando
-                  un enfoque responsable y con criterio propio en cada
-                  proyecto que emprendo.
+                  {t.about.intro}
                 </p>
                 <div className="flex flex-col gap-4">
-                  {aboutHighlights.map((item) => (
+                  {t.about.highlights.map((item) => (
                     <div
-                      key={item.title}
-                      id={`sobre-${slug(item.title)}`}
+                      key={item.id}
+                      id={`sobre-${item.id}`}
                       className="flex scroll-mt-24 flex-col gap-2 rounded-3xl border border-black/10 p-6"
                     >
                       <h3 className="font-title text-lg font-semibold">
@@ -2300,11 +2964,11 @@ export default function Home() {
           </AnimatePresence>
         </motion.div>
       </div>
-      {activeTab !== "Asistente" && scrollSections && (
+      {activeTab !== "asistente" && scrollSections && (
         <ScrollSpy key={activeTab} sections={scrollSections} />
       )}
       <AnimatePresence>
-        {activeTab === "Asistente" && (
+        {activeTab === "asistente" && (
           <AssistantScreen
             messages={chatMessages}
             busy={chatBusy}
@@ -2324,15 +2988,15 @@ export default function Home() {
       <motion.div
         className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] flex justify-center px-6"
         initial={{ y: 160, scale: 1.16 }}
-        animate={loaded ? { y: 0, scale: 1 } : { y: 160, scale: 1.16 }}
+        animate={{ y: loaded ? 0 : 160, scale: dockBig ? 1.16 : 1 }}
         transition={{
           y: { duration: 0.75, delay: 0.35, ease: [0.16, 1, 0.3, 1] },
-          // entra grande, se sostiene un momento y recién ahí se achica
-          // (mismo tiempo que el gap de la navbar: 1.5s de hold + 0.9s)
-          scale: { duration: 0.9, delay: 1.5, ease: [0.16, 1, 0.3, 1] },
+          // el hold de "grande" ya no es un delay acá: lo marca dockBig, que
+          // así puede repetir el gesto cuando vuelve del aviso
+          scale: { duration: 0.9, ease: [0.16, 1, 0.3, 1] },
         }}
       >
-        {activeTab === "Asistente" ? (
+        {activeTab === "asistente" ? (
           <AssistantDock
             busy={chatBusy}
             onSend={sendChat}
@@ -2340,27 +3004,43 @@ export default function Home() {
           />
         ) : showNotice ? (
           <DockNotice
-            onClose={() => {
-              setShowNotice(false);
-              setNoticeSeen(true);
-            }}
+            from={noticeFrom.current}
+            size={navBigSize.current}
+            endSize={navSmallSize.current}
+            active={activeTab}
+            leaving={noticeLeaving}
+            onClose={dismissNotice}
           />
         ) : (
           <Navbar
             active={activeTab}
             onChange={(label) => {
               setTabSwitched(true);
-              if (label !== "Asistente") prevTab.current = label;
+              if (label !== "asistente") prevTab.current = label;
               setActiveTab(label);
             }}
-            assistantBallAway={!!ballFlight}
+            assistantBallAway={!!ballFlight || themeBallAway}
             revealed={loaded}
+            big={dockBig}
           />
+        )}
+        {/* fuera del ternario: el botón sigue ahí cuando el dock se convierte
+            en el aviso, y por eso no repite el desprendimiento al volver */}
+        {toggleStage !== "hidden" && activeTab !== "asistente" && (
+          <>
+            <ThemeToggle
+              x={toggleX}
+              visible={toggleStage === "done"}
+              light={light}
+              onToggle={switchTheme}
+            />
+            <LangToggle x={langX} visible={toggleStage === "done"} />
+          </>
         )}
       </motion.div>
       {ballFlight && (
         <FlyingBall from={ballFlight} onDone={() => setBallFlight(null)} />
       )}
-    </>
+    </LangContext.Provider>
   );
 }
