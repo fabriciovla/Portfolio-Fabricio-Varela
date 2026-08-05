@@ -19,6 +19,9 @@ const es = {
     intro:
       "Me interesa entender como funcionan las cosas por dentro. Con criterio propio, y usando IA como copiloto para la productividad, construyo lo que se me cruce por la cabeza.",
     resume: "Currículum",
+    // botón animado de la fila de enlaces: por ahora solo la animación, la
+    // acción que dispara se define después
+    animation: "Animación",
   },
   sections: {
     proyectos: "Proyectos",
@@ -34,6 +37,12 @@ const es = {
     details: "Ver más detalles",
     backend: "Backend",
     logoAlt: (title: string) => `Logo de ${title}`,
+    // demo embebida: solo la tienen los proyectos que se dejan meter en un
+    // iframe (ver el campo `demo` en page.tsx)
+    demo: "Probar acá",
+    demoClose: "Cerrar la demo",
+    demoHint: "Es el proyecto de verdad, corriendo acá adentro.",
+    demoFrame: (title: string) => `Demo de ${title}`,
   },
   projects: {
     onechater: {
@@ -161,10 +170,24 @@ const es = {
     resting: "El asistente está descansando 😴",
     limit: "Llegaste al límite de preguntas por hoy 🙂",
     oops: "Uy, me distraje un segundo 😅. Probá de nuevo en un ratito.",
+    // modo reclutador: se pega una búsqueda laboral y el asistente contesta
+    // qué encaja y qué no, en vez de charlar
+    match: {
+      chip: "Pegá una búsqueda laboral",
+      placeholder: "Pegá acá la descripción del puesto…",
+      hint: "Te digo qué encaja con lo que hizo Fabricio y qué no.",
+      exit: "Volver al chat normal",
+    },
+    // botones que el asistente puede colgar de una respuesta para llevar al
+    // visitante a la parte del sitio de la que está hablando
+    action: {
+      go: (label: string) => `Llevame a ${label}`,
+      demo: (label: string) => `Probar ${label} acá`,
+    },
   },
   notice: {
     before: "El asistente está hecho con ",
-    after: ", mi plataforma de chat.",
+    after: ", mi chat multimodelo.",
     close: "Cerrar aviso",
   },
   toggle: {
@@ -189,6 +212,7 @@ const en: typeof es = {
     intro:
       "I like understanding how things work under the hood. With my own judgment, and using AI as a copilot for productivity, I build whatever crosses my mind.",
     resume: "Resume",
+    animation: "Animation",
   },
   sections: {
     proyectos: "Projects",
@@ -204,6 +228,10 @@ const en: typeof es = {
     details: "More details",
     backend: "Backend",
     logoAlt: (title: string) => `${title} logo`,
+    demo: "Try it here",
+    demoClose: "Close the demo",
+    demoHint: "It's the real project, running right here.",
+    demoFrame: (title: string) => `${title} demo`,
   },
   projects: {
     onechater: {
@@ -330,10 +358,20 @@ const en: typeof es = {
     resting: "The assistant is taking a break 😴",
     limit: "You reached today's question limit 🙂",
     oops: "Oops, I got distracted for a second 😅. Try again in a bit.",
+    match: {
+      chip: "Paste a job posting",
+      placeholder: "Paste the job description here…",
+      hint: "I'll tell you what matches Fabricio's work and what doesn't.",
+      exit: "Back to normal chat",
+    },
+    action: {
+      go: (label: string) => `Take me to ${label}`,
+      demo: (label: string) => `Try ${label} here`,
+    },
   },
   notice: {
     before: "The assistant is built with ",
-    after: ", my chat platform.",
+    after: ", my multi-model chat.",
     close: "Close notice",
   },
   toggle: {

@@ -25,15 +25,34 @@
 
   /* vidrio del dock: sobre fondo oscuro el brillo va por luz agregada,
      no por blanco opaco */
-  --glass-top: rgba(255, 255, 255, 0.14);
-  --glass-bottom: rgba(255, 255, 255, 0.05);
-  --glass-border: rgba(255, 255, 255, 0.16);
-  --glass-filter: blur(24px) saturate(160%) brightness(1.6);
+  --glass-top: rgba(255, 255, 255, 0.16);
+  --glass-bottom: rgba(255, 255, 255, 0.07);
+  --glass-border: rgba(255, 255, 255, 0.24);
+  /* capa de fondo opaca debajo del gradiente: subir el blanco del gradiente
+     tapaba menos y encima aclaraba el dock hasta volverlo gris. El cuerpo lo
+     pone esta base del color de la página; el gradiente queda solo como
+     reflejo arriba. brightness alto lavaba lo de atrás, así que baja */
+  --glass-base: rgba(13, 12, 11, 0.72);
+  --glass-filter: blur(28px) saturate(160%) brightness(1.15);
   --glass-shadow:
     0 24px 60px rgba(0, 0, 0, 0.65), 0 4px 12px rgba(0, 0, 0, 0.45),
     inset 0 1.5px 1.5px rgba(255, 255, 255, 0.28),
     inset 0 -2px 3px rgba(0, 0, 0, 0.35);
 
+  /* tarjetas holográficas: las tres capas (arcoíris, rayado y brillo) se
+     mezclan con el fondo de la tarjeta, y esa mezcla no se puede invertir
+     como tinta/papel — sobre oscuro el color aparece sumando luz (screen),
+     sobre claro hay que restarla (multiply), o el efecto no existe */
+  --holo-blend: screen;
+  --holo-spectrum: 0.06;
+  --holo-spectrum-hover: 0.16;
+  --holo-sheen-color: rgba(255, 255, 255, 0.9);
+  --holo-sheen: 0.05;
+  --holo-sheen-hover: 0.12;
+  /* el brillo del cursor sí suma luz en los dos tonos: en claro va con mezcla
+     normal, encima del arcoíris, y ahí el blanco se lee como reflejo */
+  --holo-glare-blend: screen;
+  --holo-glare-hover: 0.14;
 }
 
 /* tono claro: alcanza con dar vuelta tinta/papel y aflojar el vidrio, que
@@ -47,15 +66,29 @@
   --ink: var(--ink-light);
   --paper: var(--bg-light);
 
-  --glass-top: rgba(255, 255, 255, 0.8);
-  --glass-bottom: rgba(255, 255, 255, 0.4);
-  --glass-border: rgba(255, 255, 255, 0.9);
-  --glass-filter: blur(24px) saturate(180%) brightness(1.05);
+  --glass-top: rgba(255, 255, 255, 0.72);
+  --glass-bottom: rgba(255, 255, 255, 0.5);
+  --glass-border: rgba(255, 255, 255, 1);
+  --glass-base: rgba(253, 251, 247, 0.82);
+  --glass-filter: blur(28px) saturate(180%) brightness(1.05);
   --glass-shadow:
     0 24px 60px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.1),
     inset 0 1.5px 1.5px rgba(255, 255, 255, 1),
     inset 0 -2px 3px rgba(0, 0, 0, 0.06);
 
+  /* con screen sobre #fdfbf7 el resultado da blanco siempre: las tarjetas
+     quedaban planas. Multiply tiñe el papel, y como resta luz en vez de
+     sumarla hace falta más opacidad para llegar a la misma intensidad */
+  --holo-blend: multiply;
+  --holo-spectrum: 0.1;
+  --holo-spectrum-hover: 0.26;
+  /* el rayado en blanco tampoco existe bajo multiply (blanco = no toca nada):
+     las franjas van en tinta y se leen como el reflejo del papel */
+  --holo-sheen-color: rgba(23, 23, 23, 0.45);
+  --holo-sheen: 0.04;
+  --holo-sheen-hover: 0.1;
+  --holo-glare-blend: normal;
+  --holo-glare-hover: 0.35;
 }
 
 @theme inline {
@@ -97,6 +130,28 @@ body {
     color 0.45s ease;
 }
 
+/* vidrio del dock (navbar, aviso, dock del asistente y botones de al lado).
+   Va en CSS y no en el `style` de framer a propósito: con un layoutId, framer
+   toma cada prop de `style` que sepa corregir por escala —box-shadow entre
+   ellas— y la reescribe frame a frame. Su corrector parsea números y con un
+   `var(--…)` no encuentra ninguno: escribe `var(--glass-shadow)NaN`, que es
+   box-shadow inválido, y la sombra desaparece en cada morph del dock. Desde
+   una clase el valor no pasa por ahí y las tres formas del dock comparten
+   exactamente la misma sombra, así que al cambiar de una a otra no salta */
+.dock-glass {
+  /* dos capas: el gradiente blanco es el reflejo y va arriba; abajo la base
+     del color de la página, que es la que impide leer el contenido de atrás */
+  background:
+    linear-gradient(180deg, var(--glass-top), var(--glass-bottom)),
+    var(--glass-base);
+  /* el filtro y la sombra salen del tema: sobre fondo oscuro el vidrio aclara
+     lo que tiene detrás, sobre fondo claro se apoya en blanco opaco */
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
 /* ---- cambio de tono ---- */
 
 /* durante la captura de la view transition no puede haber ni una transición
@@ -106,6 +161,14 @@ body {
 :root[data-morphing] *::before,
 :root[data-morphing] *::after {
   transition: none !important;
+}
+
+/* la foto del estado viejo se queda quieta, pero el DOM de abajo sigue vivo:
+   un click, un hover o un scroll lo mueven contra una foto que no se entera y
+   el reveal se parte al medio. Mientras dura, la página no se toca (el scroll
+   por rueda/teclado lo corta el JS, que esto no lo alcanza) */
+:root[data-morphing] body {
+  pointer-events: none;
 }
 
 /* el tono viejo se queda quieto debajo y el nuevo se revela por un círculo
@@ -127,29 +190,30 @@ body {
 /* la ventana arranca del tamaño y la posición de la pelota del dock (--ball-*,
    que las pone el JS al apretar): desde el primer frame lo que se ve adentro
    de la pelota ya es el tono nuevo. Después viaja al centro creciendo, se
-   presenta un instante y ahí sí se extiende a toda la pantalla */
+   presenta un instante y ahí sí se extiende a toda la pantalla.
+
+   Recorta con clip-path y no con mask: la máscara era una imagen SVG y animarle
+   size/position obliga al navegador a rasterizarla de nuevo en cada frame, a
+   pantalla completa y en el hilo principal. clip-path es geometría pura, se
+   compone en GPU, y es la diferencia entre el tirón y los 60fps */
 ::view-transition-new(root) {
-  mask: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="white"/></svg>')
-    var(--ball-x) var(--ball-y) / var(--ball-d) no-repeat;
+  clip-path: circle(var(--ball-r) at var(--ball-cx) var(--ball-cy));
   animation: theme-reveal 2.2s;
   animation-fill-mode: both;
 }
 
 @keyframes theme-reveal {
   0% {
-    mask-position: var(--ball-x) var(--ball-y);
-    mask-size: var(--ball-d);
+    clip-path: circle(var(--ball-r) at var(--ball-cx) var(--ball-cy));
     animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
   /* ya en el medio, presentándose */
   32%,
   48% {
-    mask-position: 50% 50%;
-    mask-size: var(--ball-big);
+    clip-path: circle(var(--ball-big) at 50% 50%);
     animation-timing-function: cubic-bezier(0.85, 0, 0.15, 1);
   }
   100% {
-    mask-position: 50% 50%;
-    mask-size: 200vmax;
+    clip-path: circle(150vmax at 50% 50%);
   }
 }
