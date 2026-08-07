@@ -19,10 +19,6 @@ const es = {
     intro:
       "Me interesa entender como funcionan las cosas por dentro. Con criterio propio, y usando IA como copiloto para la productividad, construyo lo que se me cruce por la cabeza.",
     resume: "Currículum",
-    // botón animado de la fila de enlaces: lleva la cámara adentro de la
-    // pelota del logo del dock
-    animation: "Animación",
-    animationBack: "Tocá o Esc para volver",
   },
   sections: {
     proyectos: "Proyectos",
@@ -131,8 +127,13 @@ const es = {
     "Dic",
   ],
   about: {
-    intro:
-      "Soy web developer con experiencia en desarrollo full stack y una fuerte orientación hacia la integración de inteligencia artificial en flujos de trabajo y aplicaciones, para mejorar la productividad y los productos. Me apasiona entender cómo funcionan las cosas desde adentro, aplicando un enfoque responsable y con criterio propio en cada proyecto que emprendo.",
+    // partido en dos: introLead va en negrita y siempre visible, introRest
+    // se oculta en mobile (ver `hidden md:inline` en page.tsx) para no abrir
+    // la pestaña "Sobre Mí" con un párrafo entero antes de cualquier dato
+    introLead:
+      "Soy web developer con experiencia en desarrollo full stack y una fuerte orientación hacia la integración de inteligencia artificial en flujos de trabajo y aplicaciones, para mejorar la productividad y los productos.",
+    introRest:
+      "Me apasiona entender cómo funcionan las cosas desde adentro, aplicando un enfoque responsable y con criterio propio en cada proyecto que emprendo.",
     highlights: [
       {
         id: "trabajo",
@@ -250,8 +251,6 @@ const en: typeof es = {
     intro:
       "I like understanding how things work under the hood. With my own judgment, and using AI as a copilot for productivity, I build whatever crosses my mind.",
     resume: "Resume",
-    animation: "Animation",
-    animationBack: "Tap or press Esc to go back",
   },
   sections: {
     proyectos: "Projects",
@@ -357,8 +356,10 @@ const en: typeof es = {
     "Dec",
   ],
   about: {
-    intro:
-      "I'm a web developer with full stack experience and a strong focus on bringing artificial intelligence into workflows and applications, to improve both productivity and the products themselves. I'm passionate about understanding how things work from the inside, with a responsible approach and my own judgment on every project I take on.",
+    introLead:
+      "I'm a web developer with full stack experience and a strong focus on bringing artificial intelligence into workflows and applications, to improve both productivity and the products themselves.",
+    introRest:
+      "I'm passionate about understanding how things work from the inside, with a responsible approach and my own judgment on every project I take on.",
     highlights: [
       {
         id: "trabajo",

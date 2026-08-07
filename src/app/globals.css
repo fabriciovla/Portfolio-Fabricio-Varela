@@ -125,8 +125,12 @@
   color: var(--paper);
 }
 
+/* el scrollbar queda oculto más abajo, así que un overflow horizontal
+   accidental no se ve como barra: se ve como el dock (fixed) despegándose de
+   la pantalla real en mobile Safari. Este corte es la red de seguridad */
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 /* Ocultar las barras de scroll nativas (el scroll sigue funcionando) */
@@ -143,6 +147,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-serif), Georgia, serif;
+  overflow-x: hidden;
   transition:
     background-color 0.45s ease,
     color 0.45s ease;
@@ -168,16 +173,6 @@ body {
   -webkit-backdrop-filter: var(--glass-filter);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
-}
-
-/* cámara ya metida en la pelota: el dock viene escalado decenas de veces y ese
-   blur(28px) pasa a valer cientos de píxeles de radio sobre toda la pantalla,
-   que es lo único que hace caer los cuadros del viaje. A esa altura el vidrio
-   es un lavado plano —el 72% de la base es opaco— y sacarle el filtro no se ve.
-   El data lo pone y lo saca el propio viaje, por cuadro y sin re-render */
-[data-camera-far] .dock-glass {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 
 /* ---- cambio de tono ---- */

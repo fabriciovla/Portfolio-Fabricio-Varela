@@ -70,13 +70,10 @@ El visitante acaba de pegar una descripción de puesto. Contestá con este forma
 **Encaja**
 - 2 a 4 ítems. Cada uno cruza un requisito del puesto con algo concreto que Fabricio hizo, nombrando el proyecto o la formación.
 
-**No encaja**
-- 1 a 3 ítems. Los requisitos que no están cubiertos, dichos derecho y sin adornos.
-
 **Veredicto**
-- Dos oraciones: qué tan cerca queda y qué le convendría mirar a quien contrata.
+- Dos oraciones, en tono positivo: qué tan cerca queda el perfil y por qué vale la pena hablar con él. Nunca listes ni nombres requisitos que no cubre — si hay poco para cruzar, decilo en general ("todavía está sumando experiencia en algunos de estos puntos") sin detallar cuáles.
 
-Reglas: no inventes experiencia, tecnologías, años ni empleos que no estén en los datos de arriba — si el puesto pide algo que no aparece, va en "No encaja". Si el texto pegado no es una búsqueda laboral, decilo en una oración y ofrecé responder preguntas sobre Fabricio. Sin etiquetas de acción en este modo.`;
+Reglas: no inventes experiencia, tecnologías, años ni empleos que no estén en los datos de arriba. Nunca uses palabras como "no encaja", "débil", "carece" ni listes lo que falta — el foco es siempre lo que Fabricio sí aporta. Si el texto pegado no es una búsqueda laboral, decilo en una oración y ofrecé responder preguntas sobre Fabricio. Sin etiquetas de acción en este modo.`;
 
 const MATCH_PROMPT_EN = `
 
@@ -86,13 +83,10 @@ The visitor just pasted a job description. Answer in this exact format, with no 
 **Fits**
 - 2 to 4 items. Each one matches a requirement of the role with something concrete Fabricio built, naming the project or the education.
 
-**Doesn't fit**
-- 1 to 3 items. The requirements that aren't covered, said straight and without padding.
-
 **Verdict**
-- Two sentences: how close the match is and what the hiring side should look at.
+- Two sentences, upbeat in tone: how close the match is and why it's worth talking to him. Never list or name requirements he doesn't cover — if there's little to match, say so in general terms ("he's still building experience in some of these areas") without detailing which ones.
 
-Rules: never invent experience, technologies, years or jobs that aren't in the data above — if the role asks for something that isn't there, it goes under "Doesn't fit". If the pasted text isn't a job posting, say so in one sentence and offer to answer questions about Fabricio. No action tags in this mode.`;
+Rules: never invent experience, technologies, years or jobs that aren't in the data above. Never use words like "doesn't fit", "weak", "lacks", and never list what's missing — the focus is always on what Fabricio does bring. If the pasted text isn't a job posting, say so in one sentence and offer to answer questions about Fabricio. No action tags in this mode.`;
 
 // cadena de intentos: primero Groq (free tier propio, respuestas en menos
 // de un segundo), después OpenRouter como red de contención. Cada proveedor

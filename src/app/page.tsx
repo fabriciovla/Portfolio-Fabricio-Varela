@@ -21,13 +21,9 @@ import {
   type MotionValue,
 } from "framer-motion";
 import {
-  HiOutlineAcademicCap,
   HiOutlineArrowRight,
   HiOutlineBriefcase,
-  HiOutlineChatBubbleOvalLeft,
-  HiOutlineCodeBracket,
   HiOutlineEnvelope,
-  HiOutlineFolder,
   HiOutlineHome,
   HiOutlineMoon,
   HiOutlinePaperAirplane,
@@ -59,6 +55,25 @@ import type { IconType } from "react-icons";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { LangContext, copy, useLang, type Copy, type Lang } from "@/lib/i18n";
+
+// breakpoint único para todo lo que cambia de comportamiento en mobile (no
+// solo de clase CSS): el aviso pasa de morph-de-dock a banner de arriba, y las
+// tarjetas de proyecto pierden el drag-to-reorder. Mismo corte que el "md" de
+// Tailwind (768px), así no queda un breakpoint más para desalinear con el CSS.
+// Arranca en false (SSR) y se corrige apenas monta; no importa el mismatch
+// porque lo único que lee esto no se ve hasta después del primer efecto
+// (el aviso tarda 10s, el drag no afecta al pintado)
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return isMobile;
+}
 
 // indicador de "pensando": tres pelotitas rebotando, a juego con el logo
 function ThinkingDots() {
@@ -148,8 +163,8 @@ function OneChaterLogo({
 // dónde cae, en píxeles de pantalla, la pelota de abajo del logo dentro de la
 // caja del icono del dock. Mismo mapeo del viewBox "14 18 74 72": la pelota
 // está en (50, 70) y mide 34 unidades, y el svg se dibuja centrado, así que
-// todo se cuenta contra el centro del viewBox (51, 54). Lo usan el cambio de
-// tono y la cámara, que salen los dos de esa misma pelota
+// todo se cuenta contra el centro del viewBox (51, 54). La usa el cambio de
+// tono para saber de dónde sale la pelota que se agranda
 function bottomBall(icon: HTMLElement) {
   const rect = icon.getBoundingClientRect();
   // sin ancho el icono no está a la vista (asistente abierto, aviso en el
@@ -162,20 +177,6 @@ function bottomBall(icon: HTMLElement) {
     d: 34 * s,
   };
 }
-
-// un viaje de cámara ya resuelto: dónde está la pelota (cx/cy/d), cuánto hay
-// que correrla para dejarla en el centro (dx/dy), cuánto agrandar para que tape
-// la pantalla (k) y el mismo centro en coordenadas del contenido (ox/oy)
-type CameraShot = {
-  cx: number;
-  cy: number;
-  d: number;
-  dx: number;
-  dy: number;
-  k: number;
-  ox: number;
-  oy: number;
-};
 
 // pelota que viaja del chat cerrado a la navbar: arranca donde estaba el
 // globo de saturación, espera a que la navbar termine de aparecer, y vuela
@@ -847,6 +848,74 @@ function LangToggle({
   );
 }
 
+// en mobile los botones de tono/idioma no cuelgan de los bordes del dock: con
+// pantallas angostas y el dock escalado 1.16 en la entrada, el offset
+// (borde + gap + 56px de botón) se sale del viewport. Van fijos arriba de
+// todo, cada uno en su esquina, reusando el mismo switchTheme/setLang que ya
+// arma la animación del cambio de tono (esa lee `[data-assistant-icon]` del
+// dock, así que da igual desde dónde se dispare)
+function MobileThemeButton({
+  light,
+  onToggle,
+}: {
+  light: boolean;
+  onToggle: () => void;
+}) {
+  const { t } = useLang();
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={light ? t.toggle.toDark : t.toggle.toLight}
+      style={{ top: "max(0.75rem, env(safe-area-inset-top))" }}
+      className={`${DOCK_GLASS} pointer-events-auto fixed left-3 z-[70] flex h-12 w-12 items-center justify-center rounded-full text-black/70 transition-colors hover:text-black md:hidden`}
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={light ? "sol" : "luna"}
+          initial={{ opacity: 0, rotate: -90, scale: 0.6 }}
+          animate={{ opacity: 1, rotate: 0, scale: 1 }}
+          exit={{ opacity: 0, rotate: 90, scale: 0.6 }}
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          className="block"
+        >
+          {light ? (
+            <HiOutlineMoon className="h-5 w-5" />
+          ) : (
+            <HiOutlineSun className="h-5 w-5" />
+          )}
+        </motion.span>
+      </AnimatePresence>
+    </button>
+  );
+}
+
+function MobileLangButton() {
+  const { lang, setLang, t } = useLang();
+  return (
+    <button
+      type="button"
+      onClick={() => setLang(lang === "es" ? "en" : "es")}
+      aria-label={t.toggle.lang}
+      style={{ top: "max(0.75rem, env(safe-area-inset-top))" }}
+      className={`${DOCK_GLASS} pointer-events-auto fixed right-3 z-[70] flex h-12 w-12 items-center justify-center rounded-full font-mono text-sm font-medium tracking-wide text-black/70 transition-colors hover:text-black md:hidden`}
+    >
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={t.toggle.langCode}
+          initial={{ opacity: 0, y: 8, scale: 0.6 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -8, scale: 0.6 }}
+          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+          className="block"
+        >
+          {t.toggle.langCode}
+        </motion.span>
+      </AnimatePresence>
+    </button>
+  );
+}
+
 // curva imán: se pega a los extremos (0 y 1) y acelera el salto en el medio
 const magnetCurve = (t: number, s = 5) =>
   0.5 + Math.tanh((t - 0.5) * s) / (2 * Math.tanh(0.5 * s));
@@ -1296,7 +1365,6 @@ const initialProjects: {
     details: "#",
     featured: false,
     logo: "/logos/colorlab.svg",
-    demo: "https://colorlab-olive.vercel.app/",
   },
 ];
 
@@ -1432,8 +1500,12 @@ function AboutRow({
   );
 }
 
-// medida de lectura de la sección: el renglón no se estira a todo el ancho
-const ABOUT_TEXT = "max-w-[56ch] text-lg leading-8 text-black/80";
+// medida de lectura de la sección: el renglón no se estira a todo el ancho.
+// clamp a 4 líneas en mobile (mismo criterio que la descripción de proyecto):
+// esta clase la comparten highlights, nota de herramientas y "fuera del
+// código", y alguna traducción larga se comía la pantalla entera
+const ABOUT_TEXT =
+  "max-w-[56ch] text-lg leading-8 text-black/80 line-clamp-4 md:line-clamp-none";
 
 type ContributionDay = { date: string; count: number; level: number };
 
@@ -1511,7 +1583,11 @@ function GithubContributions() {
       <div className="pt-1">
         {days ? (
           <div className="flex w-full flex-col gap-2">
-            <div className="flex w-full gap-[2px]">
+            {/* overflow-hidden: la etiqueta de mes es texto posicionado
+                absoluto sobre una celda angosta (una por semana), y en la
+                última celda puede sobrar más ancho de texto que casillero —
+                sin este corte, ese sobrante empuja el scroll horizontal */}
+            <div className="flex w-full gap-[2px] overflow-hidden">
               {monthLabels.map((label, i) => (
                 <span
                   key={i}
@@ -1607,15 +1683,6 @@ function actionLabel(action: ChatAction, t: Copy) {
     ? t.assistant.action.demo(label)
     : t.assistant.action.go(label);
 }
-
-// el texto de cada sugerencia sale del diccionario, en el mismo orden
-const chatSuggestionIcons = [
-  HiOutlineChatBubbleOvalLeft,
-  HiOutlineFolder,
-  HiOutlineCodeBracket,
-  HiOutlineAcademicCap,
-  HiOutlineEnvelope,
-];
 
 function AssistantScreen({
   messages,
@@ -1833,29 +1900,26 @@ function AssistantScreen({
             </h1>
             <p className="text-base text-black/50">{t.assistant.subtitle}</p>
           </motion.div>
-          <div className="flex max-w-md flex-wrap justify-center gap-2">
-            {t.assistant.suggestions.map((text, i) => {
-              const Icon = chatSuggestionIcons[i];
-              return (
-                <motion.button
-                  key={text}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: 0.3,
-                    delay: 0.15 + i * 0.05,
-                    ease: "easeOut",
-                  }}
-                  onClick={() => {
-                    if (!busy && !notice) onSend(text);
-                  }}
-                  className="flex items-center gap-2 rounded-full border border-black/10 px-4 py-2 font-mono text-xs text-black/60 transition-colors hover:bg-black/5 hover:text-black"
-                >
-                  <Icon className="h-4 w-4" />
-                  {text}
-                </motion.button>
-              );
-            })}
+          <div className="flex w-full max-w-md flex-col gap-2 text-left">
+            {t.assistant.suggestions.map((text, i) => (
+              <motion.button
+                key={text}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.3,
+                  delay: 0.15 + i * 0.05,
+                  ease: "easeOut",
+                }}
+                onClick={() => {
+                  if (!busy && !notice) onSend(text);
+                }}
+                className="group flex items-center justify-between gap-3 rounded-lg border border-black/10 px-4 py-3 text-sm text-black/70 transition-colors hover:border-black/20 hover:bg-black/5 hover:text-black"
+              >
+                {text}
+                <HiOutlineArrowRight className="h-4 w-4 shrink-0 text-black/25 transition-all group-hover:translate-x-1 group-hover:text-black/60" />
+              </motion.button>
+            ))}
           </div>
           {/* entrada al modo búsqueda laboral: aparte de las sugerencias y con
               más peso, porque es la pregunta que trae a quien está buscando
@@ -2481,6 +2545,56 @@ function DockNotice({
   );
 }
 
+// aviso para mobile: en vez del morph del dock (pensado para el ancho de un
+// pill de escritorio, con la navbar entera de por medio) es un banner propio
+// que cae desde arriba, como una notificación de iPhone. Mismo contenido y
+// mismo `showNotice`/`noticeLeaving`/`dismissNotice` que ya maneja Home; acá
+// no hace falta el delay de salida del morph, así que la salida se anima por
+// prop en vez de por desmontaje (AnimatePresence)
+function MobileNotice({
+  leaving,
+  onClose,
+}: {
+  leaving: boolean;
+  onClose: () => void;
+}) {
+  const { t } = useLang();
+  return (
+    <motion.div
+      role="status"
+      initial={{ y: -140, opacity: 0 }}
+      animate={leaving ? { y: -140, opacity: 0 } : { y: 0, opacity: 1 }}
+      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      style={{ top: "max(0.75rem, env(safe-area-inset-top))" }}
+      className={`${DOCK_GLASS} pointer-events-auto fixed inset-x-3 z-[75] flex items-center gap-3 rounded-3xl px-4 py-3 md:hidden`}
+    >
+      <span className="block h-8 w-8 shrink-0" aria-hidden>
+        <OneChaterLogo className="h-full w-full text-black" />
+      </span>
+      <p className="min-w-0 flex-1 text-sm leading-5 text-black/70">
+        {t.notice.before}
+        <a
+          href="https://onechater.com"
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium text-black underline decoration-black/20 underline-offset-2 hover:decoration-black"
+        >
+          OneChater
+        </a>
+        {t.notice.after}
+      </p>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label={t.notice.close}
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-black/40 transition-colors hover:bg-black/5 hover:text-black"
+      >
+        <HiOutlineXMark className="h-4 w-4" />
+      </button>
+    </motion.div>
+  );
+}
+
 // logo que viaja de un rect a otro girando, dibujado sobre el body para que
 // la deformación del dock no le toque el recorrido
 function FlyingMark({
@@ -2691,56 +2805,8 @@ function DemoCloud({
   );
 }
 
-// botón animado de la fila de enlaces del hero: dispara la cámara, que se va
-// hacia la pelota de abajo del logo del dock
-function AnimatedButton({
-  label,
-  onClick,
-}: {
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      initial="rest"
-      animate="rest"
-      whileHover="hover"
-      whileTap={{ scale: 0.96 }}
-      variants={{ rest: { scale: 1 }, hover: { scale: 1.04 } }}
-      transition={{ type: "spring", stiffness: 420, damping: 26 }}
-      className="relative flex items-center gap-2 overflow-hidden rounded-md border border-black/10 px-3 py-1.5 transition-colors hover:bg-black/5"
-    >
-      {/* el brillo es un span propio y no un background-position animado sobre
-          el botón: animar el fondo repinta el texto en cada frame y el gris
-          del tono claro parpadea. Al soltar el hover vuelve con duración 0,
-          así el barrido nunca se ve en reversa (ya está fuera del recorte) */}
-      <motion.span
-        aria-hidden="true"
-        variants={{
-          rest: { x: "-150%", transition: { duration: 0 } },
-          hover: {
-            x: "350%",
-            transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] },
-          },
-        }}
-        className="pointer-events-none absolute inset-y-0 left-0 w-1/3 -skew-x-12 bg-black/10"
-      />
-      {/* la chispa late sola: sin eso el botón es idéntico a los enlaces de al
-          lado y nada invita a tocarlo */}
-      <motion.span
-        aria-hidden="true"
-        animate={{ scale: [1, 1.4, 1], opacity: [0.5, 1, 0.5] }}
-        transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-        className="h-1.5 w-1.5 rounded-full bg-black"
-      />
-      {label}
-    </motion.button>
-  );
-}
-
 export default function Home() {
+  const isMobile = useIsMobile();
   // idioma: el script del layout ya lo dejó puesto en el <html> antes de
   // pintar, así que acá se lee de ahí (leer localStorage en el render
   // rompería la hidratación)
@@ -2829,131 +2895,11 @@ export default function Home() {
   const toggleX = useTransform(dockLeft, (l) => l - DOCK_SIDE_GAP - 56);
   const langX = useTransform(dockRight, (r) => r + DOCK_SIDE_GAP);
 
-  // cámara: el botón de animación del hero mete la vista adentro de la pelota
-  // de abajo del logo del dock. No es una máscara creciendo — el contenido y el
-  // dock se escalan de verdad alrededor de esa pelota, así el movimiento se lee
-  // como un acercamiento y no como un telón que baja
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [camera, setCamera] = useState<CameraShot | null>(null);
-  // el disparo también en una ref: los useTransform de acá abajo se evalúan
-  // cuadro a cuadro y leyendo el state adentro se quedan con el del render
-  // viejo, que todavía era null
-  const shot = useRef<CameraShot | null>(null);
-  const dockLayer = useRef<HTMLDivElement>(null);
-  // dos recorridos separados, cada uno con su tiempo y su curva: el paneo
-  // (llevar la pelota al centro) se acomoda temprano y despacio, y el zoom sigue
-  // metiéndose después. Atados a un mismo progreso, el tramo final del paneo
-  // caía justo en el momento de más velocidad y el encuadre daba un volantazo
-  const camPan = useMotionValue(0);
-  const camZoomP = useMotionValue(0);
-  // la escala va exponencial (k^p) y no derecha: interpolando lineal, casi todo
-  // el acercamiento que se percibe pasa en los primeros cuadros y el resto del
-  // viaje parece frenarse solo
-  const camZoom = (p: number) => Math.pow(shot.current?.k ?? 1, p);
-  const camX = useTransform(camPan, (p) => p * (shot.current?.dx ?? 0));
-  const camY = useTransform(camPan, (p) => p * (shot.current?.dy ?? 0));
-  // nada se apaga en el camino: cada cosa se va de cuadro sola, que es lo que
-  // hace una cámara cuando se mete. Por eso el dock va sin tope: adentro tiene
-  // las otras dos pelotas del logo, que quedan a milímetros del centro del zoom
-  // y siguen a la vista hasta muy tarde — congelarlas antes se ve como si la
-  // animación se hubiera trabado
-  const camScale = useTransform(camZoomP, camZoom);
-  // el contenido sí lleva tope: es el que tiene texto e imágenes, o sea el
-  // caro de rasterizar, y para cuando llega ahí hasta el elemento más cercano
-  // al centro (el último párrafo, a más de 70px) salió hace rato por los bordes
-  const camPageScale = useTransform(camZoomP, (p) => Math.min(camZoom(p), 40));
-  // el cartel de salida recién sobre el final: antes de eso la pelota todavía
-  // no tapa el borde de abajo y el texto quedaría flotando sobre la página
-  const camHintFade = useTransform(camZoomP, [0.9, 1], [0, 1]);
-
-  function startCamera() {
-    // una cámara por vez, y nunca encima del cambio de tono: las dos salen de
-    // la misma pelota y se la disputarían
-    if (camera || themeAnim || themeBusy.current) return;
-    const icon = document.querySelector<HTMLElement>("[data-assistant-icon]");
-    const ball = icon && bottomBall(icon);
-    const content = contentRef.current;
-    // sin la pelota a la vista no hay a dónde ir: el botón no hace nada en vez
-    // de inventarse un destino
-    if (!ball || !content) return;
-    const box = content.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const next = {
-      ...ball,
-      dx: vw / 2 - ball.cx,
-      dy: vh / 2 - ball.cy,
-      // ya centrada, la pelota tiene que llegar a tapar hasta la esquina más
-      // lejana; el 1.1 es para que el borde nunca asome por un redondeo
-      k: (1.1 * Math.hypot(vw, vh)) / ball.d,
-      // el origen del zoom, en coordenadas del contenido: ese sí scrollea y no
-      // empieza en el borde del viewport, así que no sirve el punto de pantalla
-      ox: ball.cx - box.left,
-      oy: ball.cy - box.top,
-    };
-    shot.current = next;
-    setCamera(next);
-  }
-
-  // la vuelta recorre los mismos valores al revés: sale de golpe y se acomoda,
-  // que es como se siente retroceder. El paneo tarda un poco más que el zoom
-  // para que la página no aterrice de costado
-  function closeCamera() {
-    animate(camPan, 0, { duration: 1, ease: [0.16, 1, 0.3, 1] });
-    animate(camZoomP, 0, {
-      duration: 0.85,
-      ease: [0.16, 1, 0.3, 1],
-    }).finished.then(
-      () => setCamera(null),
-      () => {},
-    );
-  }
-  const closeCam = useRef(closeCamera);
-  closeCam.current = closeCamera;
-
-  useEffect(() => {
-    if (!camera) return;
-    // con movimiento reducido el viaje igual pasa, pero corto: lo que importa
-    // es dónde termina, no el paseo
-    const quick = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const pan = animate(camPan, 1, {
-      duration: quick ? 0.3 : 1,
-      ease: [0.4, 0, 0.2, 1],
-    });
-    // la curva arranca quieta y llega al final todavía a fondo: frenar sobre el
-    // final deja el último tramo (el que más se ve, porque la pelota ya ocupa
-    // media pantalla) arrastrándose
-    const zoom = animate(camZoomP, 1, {
-      duration: quick ? 0.35 : 1.5,
-      ease: [0.4, 0, 0.7, 0.9],
-    });
-    // el vidrio del dock tiene blur(28px): escalado decenas de veces son
-    // cientos de píxeles de radio sobre toda la pantalla y se caen los cuadros.
-    // Pasado ese punto el dock ya es un lavado plano y sacarle el filtro no se
-    // nota. Se escribe al DOM directo, sin estado: es un cambio por cuadro
-    const unwatch = camZoomP.on("change", (p) => {
-      const el = dockLayer.current;
-      if (!el) return;
-      if (p > 0.35) el.dataset.cameraFar = "1";
-      else delete el.dataset.cameraFar;
-    });
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeCam.current();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      pan.stop();
-      zoom.stop();
-      unwatch();
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [camera, camPan, camZoomP]);
-
   useEffect(() => {
     // durante el reveal se apaga: son dos getBoundingClientRect por frame, o
     // sea un layout sincrónico en cada frame de la animación, y el dock no se
     // mueve igual porque la página está congelada
-    if (toggleStage !== "done" || themeAnim || camera) return;
+    if (toggleStage !== "done" || themeAnim) return;
     let raf = 0;
     const tick = () => {
       const el =
@@ -2975,7 +2921,7 @@ export default function Home() {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [toggleStage, themeAnim, camera, dockLeft, dockRight]);
+  }, [toggleStage, themeAnim, dockLeft, dockRight]);
 
   // el barrido (logo borrando el mensaje y destapando las secciones) lo hace
   // el propio aviso; acá solo se espera a que termine para devolver la navbar
@@ -3048,15 +2994,14 @@ export default function Home() {
     const icon = document.querySelector<HTMLElement>("[data-assistant-icon]");
     const ball = icon && bottomBall(icon);
     // sin el icono a la vista (asistente abierto, aviso en el dock), sin
-    // soporte, con movimiento reducido, con una pelota ya en el aire o con la
-    // cámara adentro de esa misma pelota: el tono cambia de una
+    // soporte, con movimiento reducido o con una pelota ya en el aire: el
+    // tono cambia de una
     if (
       !ball ||
       !doc.startViewTransition ||
       window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
       themeBallAway ||
-      ballFlight ||
-      camera
+      ballFlight
     ) {
       applyTheme(next);
       return;
@@ -3103,11 +3048,9 @@ export default function Home() {
 
   // mientras se destapa el tono, la página no se toca. El puntero lo corta el
   // CSS de [data-morphing]; el scroll no, y es el peor: mueve el DOM vivo
-  // debajo de una foto quieta y el reveal se parte al medio. Con la cámara
-  // adentro pasa lo mismo por otro lado: el origen del zoom se midió una vez y
-  // scrollear lo deja apuntando a cualquier lado
+  // debajo de una foto quieta y el reveal se parte al medio
   useEffect(() => {
-    if (!themeAnim && !camera) return;
+    if (!themeAnim) return;
     const stop = (e: Event) => e.preventDefault();
     const scrollKeys = new Set([
       " ",
@@ -3131,7 +3074,7 @@ export default function Home() {
       window.removeEventListener("touchmove", stop, true);
       window.removeEventListener("keydown", stopKey, true);
     };
-  }, [themeAnim, camera]);
+  }, [themeAnim]);
 
   // renacimiento: las dos pelotas que quedaron giran y de ese giro sale la
   // tercera. useLayoutEffect y no useEffect para que la pelota nunca llegue a
@@ -3493,33 +3436,16 @@ export default function Home() {
 
   return (
     <LangContext.Provider value={{ lang, setLang, t }}>
-      {/* el transform vive solo mientras dura el viaje, y al terminar se apaga
-          a mano: cualquier transform, aunque sea la identidad que deja framer,
-          convierte al contenido en bloque contenedor de todo lo que tenga
-          position:fixed adentro (el estallido de partículas, por ejemplo), y
-          eso deja de medirse contra el viewport */}
       <motion.div
         id="top"
-        ref={contentRef}
-        style={
-          camera
-            ? {
-                x: camX,
-                y: camY,
-                scale: camPageScale,
-                transformOrigin: `${camera.ox}px ${camera.oy}px`,
-                // capa propia para todo el viaje: sin esto el navegador vuelve
-                // a rasterizar el texto en cada cuadro a una escala nueva y la
-                // cámara se entrecorta. Se pierde nitidez a medida que crece,
-                // que es justo lo que hace algo que te pasa por al lado
-                willChange: "transform",
-              }
-            : { transform: "none" }
-        }
-        className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-start gap-16 px-10 pt-16 pb-32 text-left"
+        className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center gap-16 px-10 pt-16 pb-32 text-left md:items-start"
       >
+        {/* el texto centrado queda acotado a este bloque (nombre, rol, intro,
+            links): pasarlo por el wrapper de arriba lo heredaban también las
+            tarjetas de proyecto y "Sobre Mí", que tienen que seguir a la
+            izquierda */}
         <motion.div
-          className="flex flex-col items-start gap-5"
+          className="flex flex-col items-center gap-5 text-center md:items-start md:text-left"
           variants={enterStagger}
           initial="hidden"
           animate="show"
@@ -3538,7 +3464,7 @@ export default function Home() {
           </motion.p>
           <motion.div
             variants={enterItem}
-            className="flex flex-wrap gap-2 font-mono text-sm"
+            className="flex flex-wrap justify-center gap-2 font-mono text-sm md:justify-start"
           >
             {linksFor(t).map((link) => (
               <a
@@ -3550,7 +3476,6 @@ export default function Home() {
                 {link.label}
               </a>
             ))}
-            <AnimatedButton label={t.hero.animation} onClick={startCamera} />
           </motion.div>
         </motion.div>
 
@@ -3591,11 +3516,15 @@ export default function Home() {
                       key={project.id}
                       id={`proyecto-${slug(project.title)}`}
                       value={project}
+                      // en mobile el drag vertical pelea con el scroll de la
+                      // página (mismo eje), así que las tarjetas quedan
+                      // estáticas: sin listener no hay gesto que capturar
+                      dragListener={!isMobile}
                       whileDrag={{
                         scale: 1.02,
                         boxShadow: "0 12px 30px rgba(0,0,0,0.55)",
                       }}
-                      className={`group relative flex scroll-mt-24 cursor-grab flex-col gap-4 rounded-3xl border bg-[var(--background)] p-6 active:cursor-grabbing ${
+                      className={`group relative flex scroll-mt-24 flex-col gap-4 rounded-3xl border bg-[var(--background)] p-4 sm:p-6 md:cursor-grab md:active:cursor-grabbing ${
                         project.featured
                           ? "border-black/80 shadow-lg"
                           : "border-black/10"
@@ -3634,12 +3563,18 @@ export default function Home() {
                           </a>
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-black/10 bg-black/[.02] p-4">
-                        <p className="text-base leading-7 text-black/70">
+                      <div className="rounded-2xl border border-black/10 bg-black/[.02] p-3 sm:p-4">
+                        {/* recortada a 4 líneas en mobile: sin el backend (ya
+                            afuera) la descripción sola seguía dejando la
+                            tarjeta larguísima en pantallas chicas */}
+                        <p className="line-clamp-4 text-base leading-7 text-black/70 md:line-clamp-none">
                           {t.projects[project.id].description}
                         </p>
                       </div>
-                      <div className="flex flex-col gap-2">
+                      {/* el detalle de backend se saca en mobile: sumado a la
+                          descripción, la tarjeta terminaba ocupando varias
+                          pantallas de scroll en un teléfono */}
+                      <div className="hidden flex-col gap-2 md:flex">
                         <h4 className="font-mono text-xs tracking-widest text-black/50 uppercase">
                           {t.project.backend}
                         </h4>
@@ -3672,10 +3607,18 @@ export default function Home() {
                             return (
                               <span
                                 key={tech}
+                                title={tech}
                                 className="flex items-center gap-1.5 rounded-md border border-black/10 px-2 py-1"
                               >
                                 {Icon && <Icon size={14} color={color} />}
-                                {tech}
+                                {/* el nombre se saca en mobile, queda el
+                                    ícono solo: la fila de chips era la otra
+                                    gran responsable del alto de la tarjeta.
+                                    sr-only y no hidden: el stack sigue
+                                    legible para lectores de pantalla */}
+                                <span className="sr-only sm:not-sr-only">
+                                  {tech}
+                                </span>
                               </span>
                             );
                           })}
@@ -3724,10 +3667,15 @@ export default function Home() {
                           </span>
                         </h3>
                         <ul className="flex flex-col gap-2 pl-5">
-                          {item.bullets.map((bullet) => (
+                          {item.bullets.map((bullet, i) => (
                             <li
                               key={bullet}
-                              className="list-disc text-base leading-7 text-black/70"
+                              // el tercer punto (y siguientes) se saca en
+                              // mobile: con tres bullets largos la línea de
+                              // tiempo de Educación no entraba en una pantalla
+                              className={`list-disc text-base leading-7 text-black/70 ${
+                                i >= 2 ? "hidden md:list-item" : ""
+                              }`}
                             >
                               {bullet}
                             </li>
@@ -3747,50 +3695,75 @@ export default function Home() {
                   </h2>
                   <div className="flex flex-col gap-4">
                     {certifications.map((cert) => (
+                      // el id vive en este wrapper (siempre presente) y no en
+                      // las dos variantes de adentro: si id fuera de la card
+                      // visible, habría dos elementos con el mismo id en el
+                      // DOM a la vez (uno oculto por CSS) y el scrollspy
+                      // podría engancharse al que no se ve
                       <div
                         key={cert.id}
                         id={`cert-${slug(cert.title)}`}
                         className="scroll-mt-24"
                       >
-                        <HoloCard>
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                              <cert.icon className="h-5 w-5 text-black" />
-                              <h3 className="font-title text-lg font-semibold">
+                        {/* mobile: sin descripción, tags ni código, la card
+                            explicaba de más y quedaba larguísima. Solo logo +
+                            nombre, centrado, y toda la card es el link a la
+                            credencial. En desktop sigue la card completa */}
+                        <a
+                          href={cert.link}
+                          {...externalLink(cert.link)}
+                          className="block md:hidden"
+                        >
+                          <HoloCard>
+                            <div className="flex flex-col items-center gap-3 py-2 text-center">
+                              <cert.icon className="h-8 w-8 text-black" />
+                              <h3 className="font-title text-base font-semibold">
                                 {cert.title}
                               </h3>
-                              <span className="text-black/40">·</span>
-                              <span className="text-base text-black/60">
-                                {cert.issuer}
+                            </div>
+                          </HoloCard>
+                        </a>
+                        <div className="hidden md:block">
+                          <HoloCard>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <cert.icon className="h-5 w-5 text-black" />
+                                <h3 className="font-title text-lg font-semibold">
+                                  {cert.title}
+                                </h3>
+                                <span className="text-black/40">·</span>
+                                <span className="text-base text-black/60">
+                                  {cert.issuer}
+                                </span>
+                              </div>
+                              <span className="font-mono text-sm text-black/40">
+                                {cert.code}
                               </span>
                             </div>
-                            <span className="font-mono text-sm text-black/40">
-                              {cert.code}
-                            </span>
-                          </div>
-                          <div className="flex flex-col gap-3 rounded-2xl border border-black/10 bg-black/[.02] p-4">
-                            <p className="text-base leading-7 text-black/70">
-                              {t.certifications[cert.id].description}
-                            </p>
-                            <div className="flex flex-wrap gap-2 font-mono text-xs text-black/60">
-                              {t.certifications[cert.id].tags.map((tag) => (
-                                <span
-                                  key={tag}
-                                  className="rounded-md border border-black/10 px-2 py-1"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
+                            <div className="flex flex-col gap-3 rounded-2xl border border-black/10 bg-black/[.02] p-4">
+                              <p className="text-base leading-7 text-black/70">
+                                {t.certifications[cert.id].description}
+                              </p>
+                              <div className="flex flex-wrap gap-2 font-mono text-xs text-black/60">
+                                {t.certifications[cert.id].tags.map((tag) => (
+                                  <span
+                                    key={tag}
+                                    className="rounded-md border border-black/10 px-2 py-1"
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                              <a
+                                href={cert.link}
+                                {...externalLink(cert.link)}
+                                className="text-sm text-black/60 hover:text-black"
+                              >
+                                {t.cert.view}
+                              </a>
                             </div>
-                            <a
-                              href={cert.link}
-                              {...externalLink(cert.link)}
-                              className="text-sm text-black/60 hover:text-black"
-                            >
-                              {t.cert.view}
-                            </a>
-                          </div>
-                        </HoloCard>
+                          </HoloCard>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -3890,11 +3863,14 @@ export default function Home() {
                 >
                   {t.sections.sobreMi}
                 </h2>
-                {/* entrada de lectura: renglones cortos y altos. Es el texto
-                    más largo del sitio y va en el tono pleno, no en /70: a
-                    esta cantidad de renglones el gris cansa */}
+                {/* entrada de lectura: renglones cortos y altos, en el tono
+                    pleno (no /70) porque es el bloque de texto más largo del
+                    sitio. introLead va en negrita y siempre visible; introRest
+                    se saca en mobile (hidden md:inline) para no abrir la
+                    pestaña con dos oraciones enteras antes de llegar a nada */}
                 <p className="max-w-[54ch] text-xl leading-[1.7] text-black">
-                  {t.about.intro}
+                  <span className="font-semibold">{t.about.introLead}</span>{" "}
+                  <span className="hidden md:inline">{t.about.introRest}</span>
                 </p>
                 {/* sin tarjetas: cada punto es una fila con la etiqueta al
                     costado y una línea que la separa de la anterior. Tres
@@ -3956,25 +3932,9 @@ export default function Home() {
         </motion.div>
       </motion.div>
       {activeTab !== "asistente" && scrollSections && (
-        // el rail también viaja: está pegado al viewport, así que sin la cámara
-        // encima se quedaría quieto contra un fondo que se acerca. Se va de
-        // cuadro por el costado, como todo lo demás
-        <motion.div
-          className="pointer-events-none fixed inset-0"
-          style={
-            camera
-              ? {
-                  x: camX,
-                  y: camY,
-                  scale: camPageScale,
-                  transformOrigin: `${camera.cx}px ${camera.cy}px`,
-                  willChange: "transform",
-                }
-              : { transform: "none" }
-          }
-        >
+        <div className="pointer-events-none fixed inset-0">
           <ScrollSpy key={activeTab} sections={scrollSections} />
-        </motion.div>
+        </div>
       )}
       <AnimatePresence>
         {activeTab === "asistente" && (
@@ -3996,34 +3956,21 @@ export default function Home() {
           />
         )}
       </AnimatePresence>
-      {/* capa aparte para la cámara: el dock ya tiene su propio transform (la
-          entrada desde abajo y el escalado), y meterle el zoom encima pisaría
-          uno de los dos. El dock no se desvanece, se va de cuadro por los
-          costados como todo lo demás. Terminado el viaje el transform se apaga:
-          framer deja la identidad escrita, y un transform vivo acá le mueve el
-          piso a la proyección del layoutId compartido con el aviso */}
-      <motion.div
-        ref={dockLayer}
-        className="pointer-events-none fixed inset-0 z-[60]"
-        style={
-          camera
-            ? {
-                x: camX,
-                y: camY,
-                scale: camScale,
-                transformOrigin: `${camera.cx}px ${camera.cy}px`,
-                willChange: "transform",
-              }
-            : { transform: "none" }
-        }
-      >
+      <div className="pointer-events-none fixed inset-0 z-[60]">
         {/* el dock recién sube (desde abajo del viewport) con la página cargada;
           animar el contenedor y no la nav deja intacto el morph del layoutId */}
         <motion.div
           ref={dockContainer}
           className="pointer-events-none fixed inset-x-0 bottom-6 flex justify-center px-6"
-          initial={{ y: 160, scale: 1.16 }}
-          animate={{ y: loaded ? 0 : 160, scale: dockBig ? 1.16 : 1 }}
+          // en mobile el dock no se agranda ni separa los items al entrar: a
+          // 1.16 con el gap de "grande" el ancho se pasaba del viewport
+          // (scroll horizontal) y "Sobre Mí" se partía en dos líneas. Queda
+          // solo el desplazamiento vertical, que no tiene ese problema
+          initial={{ y: 160, scale: isMobile ? 1 : 1.16 }}
+          animate={{
+            y: loaded ? 0 : 160,
+            scale: isMobile ? 1 : dockBig ? 1.16 : 1,
+          }}
           transition={{
             y: { duration: 0.75, delay: 0.35, ease: [0.16, 1, 0.3, 1] },
             // el hold de "grande" ya no es un delay acá: lo marca dockBig, que
@@ -4039,7 +3986,9 @@ export default function Home() {
               match={matchMode}
               onMatch={setMatchMode}
             />
-          ) : showNotice ? (
+          ) : showNotice && !isMobile ? (
+            // en mobile el aviso no vive acá: el dock se queda de navbar y el
+            // mensaje sale por MobileNotice, como notificación de arriba
             <DockNotice
               from={noticeFrom.current}
               size={navBigSize.current}
@@ -4058,13 +4007,14 @@ export default function Home() {
               }}
               assistantBallAway={!!ballFlight || themeBallAway}
               revealed={loaded}
-              big={dockBig}
+              big={isMobile ? false : dockBig}
             />
           )}
           {/* fuera del ternario: el botón sigue ahí cuando el dock se convierte
-            en el aviso, y por eso no repite el desprendimiento al volver */}
+            en el aviso, y por eso no repite el desprendimiento al volver.
+            Solo en desktop: en mobile los reemplazan los de las esquinas */}
           {toggleStage !== "hidden" && activeTab !== "asistente" && (
-            <>
+            <div className="hidden md:contents">
               <ThemeToggle
                 x={toggleX}
                 visible={toggleStage === "done"}
@@ -4072,47 +4022,18 @@ export default function Home() {
                 onToggle={switchTheme}
               />
               <LangToggle x={langX} visible={toggleStage === "done"} />
-            </>
+            </div>
           )}
         </motion.div>
-      </motion.div>
-      {camera && (
-        // la cámara termina adentro de la pelota: esta copia nace clavada
-        // encima de la del dock (mismo color, mismo lugar) y sigue creciendo
-        // cuando el dock ya se fue de cuadro, sin tope de escala. Es la única
-        // capa sin will-change: promovida, el círculo se rasterizaría chico y
-        // llegaría al final con el borde hecho pedazos
-        <div className="fixed inset-0 z-[62]" onClick={() => closeCamera()}>
-          <motion.div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0"
-            style={{
-              x: camX,
-              y: camY,
-              scale: camScale,
-              transformOrigin: `${camera.cx}px ${camera.cy}px`,
-            }}
-          >
-            <div
-              className="absolute rounded-full bg-black"
-              style={{
-                left: camera.cx - camera.d / 2,
-                top: camera.cy - camera.d / 2,
-                width: camera.d,
-                height: camera.d,
-              }}
-            />
-          </motion.div>
-          {/* adentro de la pelota no queda nada a la vista: sin esta línea la
-              única salida es adivinar. Va fuera de la capa escalada, o saldría
-              agrandada por la misma cámara */}
-          <motion.p
-            style={{ opacity: camHintFade }}
-            className="absolute inset-x-0 bottom-10 text-center font-mono text-xs tracking-widest text-white/40 uppercase"
-          >
-            {t.hero.animationBack}
-          </motion.p>
-        </div>
+      </div>
+      {loaded && activeTab !== "asistente" && (
+        <>
+          <MobileThemeButton light={light} onToggle={switchTheme} />
+          <MobileLangButton />
+        </>
+      )}
+      {isMobile && showNotice && (
+        <MobileNotice leaving={noticeLeaving} onClose={dismissNotice} />
       )}
       {ballFlight && (
         <FlyingBall from={ballFlight} onDone={() => setBallFlight(null)} />
