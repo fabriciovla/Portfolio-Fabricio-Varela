@@ -1,0 +1,123 @@
+/* tono claro fijo. Todos los colores salen de estas variables: cuando se rehaga
+   el cambio de tono alcanza con redefinirlas en otro selector, sin tocar
+   ningún componente */
+:root {
+  color-scheme: light;
+
+  /* blanco con tinte lavanda y tinta azulada, con azul de acento. Esta paleta
+     se queda: es la que le gusta al dueño del sitio */
+  --bg: #f9f8fe;
+  --surface: #f3f3fc;
+  --surface-hover: #ebebf8;
+  --bg-soft: rgba(20, 20, 45, 0.025);
+  --text: #14141f;
+  --text-strong: rgba(20, 20, 31, 0.8);
+  --text-body: rgba(20, 20, 31, 0.7);
+  --text-muted: rgba(20, 20, 31, 0.6);
+  --text-dim: rgba(20, 20, 31, 0.5);
+  --text-faint: rgba(20, 20, 31, 0.4);
+  --border: rgba(20, 20, 45, 0.1);
+  --border-soft: rgba(20, 20, 45, 0.07);
+  --hover-bg: rgba(20, 20, 45, 0.05);
+  --accent: #0b47c0;
+  --accent-text: #0a46b8;
+
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-title: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+
+  /* tarjetas holográficas: sobre claro el color se resta (multiply) */
+  --holo-blend: multiply;
+  --holo-spectrum: 0.1;
+  --holo-spectrum-hover: 0.26;
+  --holo-sheen-color: rgba(23, 23, 23, 0.45);
+  --holo-sheen: 0.04;
+  --holo-sheen-hover: 0.1;
+  --holo-glare-blend: normal;
+  --holo-glare-hover: 0.35;
+
+  /* escala clara de GitHub */
+  --contrib-0: rgba(23, 23, 23, 0.07);
+  --contrib-1: #9be9a8;
+  --contrib-2: #40c463;
+  --contrib-3: #30a14e;
+  --contrib-4: #216e39;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+}
+
+/* barras de scroll ocultas (el scroll sigue andando). Con una barra visible
+   quedaba una franja a la derecha que la tarjeta no puede cubrir al abrirse
+   a pantalla completa, y al bloquear el body la página saltaba de ancho */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  line-height: 1.5;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+ul {
+  margin: 0;
+}
+
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* iconos Material Symbols. --fill y --wght son variables para poder animar los
+   ejes de la fuente variable con GSAP (ver directives/iconHover.js). El eje
+   opsz (tamaño óptico) lo resuelve el navegador solo según el font-size */
+.ms {
+  --fill: 0;
+  --wght: 400;
+  display: inline-block;
+  font-family: 'Material Symbols Rounded';
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  font-variation-settings: 'FILL' var(--fill), 'wght' var(--wght), 'GRAD' 0;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
